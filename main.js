@@ -32,7 +32,7 @@ import {
    ===================================================== */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDUBwgGHDhJ-v6kBE5Dn3O_FxF8EfPPfy4",
+  apiKey: "AIzaSyDUBwgGhDHj-v6kBE5Dn3O_FxF8EfPPfy4",
   authDomain: "poultrylink-2459a.firebaseapp.com",
   projectId: "poultrylink-2459a",
   storageBucket: "poultrylink-2459a.firebasestorage.app",
