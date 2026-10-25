@@ -1,23 +1,18 @@
-// PoultryLink interaction fixes: consistent mobile menu state and predictable refresh position.
-if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-window.addEventListener("pageshow", event => {
-  if (!location.hash && (
-    event.persisted ||
-    performance.getEntriesByType("navigation")[0]?.type === "reload"
-  )) window.scrollTo(0, 0);
-});
+/* PoultryLink — Firebase marketplace frontend
+   Payments are intentionally NOT integrated.
+   Never place a Paystack secret key in this file.
+*/
 
-import {
-  initializeApp
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
   getAuth,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail,
+  updatePassword
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 
 import {
@@ -25,14 +20,14 @@ import {
   collection,
   doc,
   addDoc,
+  setDoc,
+  getDoc,
+  getDocs,
   updateDoc,
   deleteDoc,
-  getDoc,
-  setDoc,
   query,
   where,
   onSnapshot,
-  getDocs,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
@@ -42,7 +37,7 @@ const firebaseConfig = {
   projectId: "poultrylink-2459a",
   storageBucket: "poultrylink-2459a.firebasestorage.app",
   messagingSenderId: "332920290687",
-  appId: "1:332920290687:web:3e71c648817e1c07ba6e4"
+  appId: "1:332920290687:web:3e71c648817e1c07ba6e4a"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -50,49 +45,58 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const $ = id => document.getElementById(id);
+const all = (selector, root = document) =>
+  [...root.querySelectorAll(selector)];
 
-let user = null;
-let listings = [];
-let filtered = [];
-let authMode = "signin";
-let editingId = null;
-let unsubscribeListings = null;
-let ordersLoading = false;
+let currentUser = null;
+let products = [];
+let profile = {};
+let storefront = {};
+let savedIds = new Set();
+let cart = readCart();
+let activeAuthMode = "login";
+let unsubscribeProducts = null;
+let dashboardTab = "overview";
 
-const CART_KEY = "poultrylink_cart_v1";
-let cart = loadCart();
+const CART_KEY = "poultrylink_cart_v2";
 
-const categoryArt = {
-  Eggs: ["🥚", "eggs"],
-  Layers: ["🐔", "layers"],
-  Broilers: ["🍗", "broilers"],
-  Chicks: ["🐣", "chicks"],
-  Feed: ["🌾", "feed"],
-  Equipment: ["🧰", "equipment"]
+const CATEGORIES = [
+  "Eggs",
+  "Layers",
+  "Broilers",
+  "Chicks",
+  "Feed",
+  "Equipment",
+  "Manure",
+  "Services"
+];
+
+const STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra",
+  "Bauchi", "Bayelsa", "Benue", "Borno",
+  "Cross River", "Delta", "Ebonyi", "Edo",
+  "Ekiti", "Enugu", "FCT", "Gombe",
+  "Imo", "Jigawa", "Kaduna", "Kano",
+  "Katsina", "Kebbi", "Kogi", "Kwara",
+  "Lagos", "Nasarawa", "Niger", "Ogun",
+  "Ondo", "Osun", "Oyo", "Plateau",
+  "Rivers", "Sokoto", "Taraba", "Yobe",
+  "Zamfara"
+];
+
+const artMap = {
+  Eggs: "🥚",
+  Layers: "🐔",
+  Broilers: "🍗",
+  Chicks: "🐣",
+  Feed: "🌾",
+  Equipment: "🧰",
+  Manure: "🌱",
+  Services: "🛠️"
 };
 
-function loadCart() {
-  try {
-    return JSON.parse(localStorage.getItem(CART_KEY) || "[]")
-      .filter(x =>
-        x &&
-        typeof x.id === "string" &&
-        Number.isFinite(x.price) &&
-        Number.isFinite(x.qty) &&
-        x.qty > 0
-      );
-  } catch {
-    return [];
-  }
-}
-
-function saveCart() {
-  localStorage.setItem(CART_KEY, JSON.stringify(cart));
-  renderCartBadge();
-}
-
-function escapeHTML(v = "") {
-  return String(v).replace(/[&<>"']/g, c => ({
+function esc(value = "") {
+  return String(value).replace(/[&<>"']/g, c => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
@@ -101,37 +105,52 @@ function escapeHTML(v = "") {
   }[c]));
 }
 
-function naira(n) {
+function money(value) {
   return new Intl.NumberFormat("en-NG", {
     style: "currency",
     currency: "NGN",
     maximumFractionDigits: 0
-  }).format(Number(n) || 0);
+  }).format(Number(value) || 0);
 }
 
-function normalisePhone(v = "") {
-  let n = String(v).replace(/\D/g, "");
-  if (n.startsWith("0")) n = "234" + n.slice(1);
-  return n;
+function showToast(message) {
+  const region = $("toastRegion");
+
+  if (region) {
+    region.textContent = message;
+    region.classList.add("show");
+
+    clearTimeout(showToast.timer);
+
+    showToast.timer = setTimeout(
+      () => region.classList.remove("show"),
+      3200
+    );
+  } else {
+    console.info("PoultryLink:", message);
+  }
+
+  const live = $("appLiveStatus");
+
+  if (live) {
+    live.textContent = message;
+  }
 }
 
-function toast(message) {
-  const el = $("toast");
-  el.textContent = message;
-  el.classList.add("show");
+function showError(targetId, message) {
+  const el = $(targetId);
 
-  clearTimeout(toast.timer);
-
-  toast.timer = setTimeout(
-    () => el.classList.remove("show"),
-    3000
-  );
+  if (el) {
+    el.textContent = message;
+  } else {
+    showToast(message);
+  }
 }
 
-function errorText(e) {
+function friendlyError(error) {
   const map = {
     "auth/email-already-in-use":
-      "This email already has an account. Please sign in.",
+      "That email already has an account. Please sign in.",
 
     "auth/invalid-email":
       "Enter a valid email address.",
@@ -139,1135 +158,1978 @@ function errorText(e) {
     "auth/invalid-credential":
       "Email or password is incorrect.",
 
+    "auth/user-not-found":
+      "No account was found for that email.",
+
+    "auth/wrong-password":
+      "Email or password is incorrect.",
+
     "auth/weak-password":
-      "Use a password with at least six characters.",
+      "Choose a password with at least six characters.",
+
+    "auth/too-many-requests":
+      "Too many attempts. Wait a little and try again.",
+
+    "auth/network-request-failed":
+      "Network problem. Check your connection and try again.",
 
     "permission-denied":
-      "Permission denied by Firebase security rules. Check the rules installed in Firestore.",
+      "Firebase denied this action under the current Firestore rules.",
 
     "unavailable":
-      "Service temporarily unavailable. Check your internet connection."
+      "Firebase is temporarily unavailable. Check your internet connection."
   };
 
-  return map[e?.code] || e?.message || "Something went wrong. Please try again.";
+  return map[error?.code] ||
+    error?.message ||
+    "Something went wrong. Please try again.";
 }
 
 function openDialog(id) {
-  const d = $(id);
-  if (d && !d.open) d.showModal();
+  const el = $(id);
+
+  if (el?.showModal && !el.open) {
+    el.showModal();
+  }
 }
 
 function closeDialog(id) {
-  const d = $(id);
-  if (d?.open) d.close();
+  const el = $(id);
+
+  if (el?.open) {
+    el.close();
+  }
 }
 
-function artFor(p) {
-  return categoryArt[p.category] || [p.emoji || "🐔", "layers"];
+function openAuth(mode = "login") {
+  setAuthMode(mode);
+  openDialog("authDialog");
 }
 
-function createdMillis(p) {
+function setAuthMode(mode) {
+  activeAuthMode =
+    mode === "register" || mode === "signup"
+      ? "register"
+      : "login";
+
+  const registering = activeAuthMode === "register";
+
+  const title =
+    $("authDialogTitle") || $("authTitle");
+
+  if (title) {
+    title.textContent = registering
+      ? "Create your PoultryLink account"
+      : "Welcome back";
+  }
+
+  const description =
+    $("authDialogDescription") || $("authSubtitle");
+
+  if (description) {
+    description.textContent = registering
+      ? "Create one account to buy and sell poultry products."
+      : "Sign in to manage your marketplace activity.";
+  }
+
+  const nameField = $("authNameField");
+
+  if (nameField) {
+    nameField.classList.toggle("hidden", !registering);
+  }
+
+  const nameInput =
+    $("authDisplayName") || $("authName");
+
+  if (nameInput) {
+    nameInput.required = registering;
+  }
+
+  const confirmField = $("authConfirmPasswordField");
+
+  if (confirmField) {
+    confirmField.classList.toggle("hidden", !registering);
+  }
+
+  const termsField = $("authTermsField");
+
+  if (termsField) {
+    termsField.classList.toggle("hidden", !registering);
+  }
+
+  const submit = $("authSubmitButton");
+
+  if (submit) {
+    submit.textContent = registering
+      ? "Create account"
+      : "Sign in";
+  }
+
+  const oldSwitch = $("authSwitchButton");
+
+  if (oldSwitch) {
+    oldSwitch.textContent = registering
+      ? "Already have an account? Sign in"
+      : "Need an account? Create one";
+  }
+
+  const error = $("authError") || $("authMessage");
+
+  if (error) {
+    error.textContent = "";
+  }
+
+  all("[data-auth-mode]").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.authMode === activeAuthMode
+    );
+  });
+}
+
+function updateAuthUI() {
+  const signed = !!currentUser;
+
+  [
+    "signInButton",
+    "headerCreateAccountButton",
+    "footerSignInButton",
+    "footerCreateAccountButton"
+  ].forEach(id => {
+    const el = $(id);
+
+    if (el) {
+      el.classList.toggle(
+        "hidden",
+        signed &&
+          (id.includes("SignIn") || id.includes("CreateAccount"))
+      );
+    }
+  });
+
+  const userArea = $("headerUserArea");
+
+  if (userArea) {
+    userArea.classList.toggle("hidden", !signed);
+  }
+
+  const display =
+    currentUser?.displayName ||
+    profile.displayName ||
+    "PoultryLink member";
+
+  [
+    "headerUserName",
+    "dashboardSidebarName",
+    "profileDisplayName"
+  ].forEach(id => {
+    if ($(id)) {
+      $(id).textContent = display;
+    }
+  });
+
+  [
+    "headerUserAvatar",
+    "dashboardSidebarAvatar",
+    "profileAvatar"
+  ].forEach(id => {
+    if ($(id)) {
+      $(id).textContent =
+        (display.trim()[0] || "P").toUpperCase();
+    }
+  });
+
+  if ($("profileEmail")) {
+    $("profileEmail").value = currentUser?.email || "";
+  }
+
+  if ($("authSignedInEmail")) {
+    $("authSignedInEmail").textContent =
+      currentUser?.email || "";
+  }
+
+  if ($("authSignedInState")) {
+    $("authSignedInState").classList.toggle(
+      "hidden",
+      !signed
+    );
+  }
+
+  if ($("authForm")) {
+    $("authForm").classList.toggle("hidden", signed);
+  }
+
+  if ($("accountContent")) {
+    $("accountContent").classList.toggle("hidden", signed);
+  }
+
+  if ($("signedInControls")) {
+    $("signedInControls").classList.toggle(
+      "hidden",
+      !signed
+    );
+  }
+
+  if ($("dashboardPage")) {
+    $("dashboardPage").classList.toggle("hidden", !signed);
+  }
+
+  if ($("dashboardWelcomeTitle")) {
+    $("dashboardWelcomeTitle").textContent =
+      `Welcome, ${display}`;
+  }
+
+  if ($("dashboardWelcomeSubtitle")) {
+    $("dashboardWelcomeSubtitle").textContent =
+      "Your poultry marketplace activity, all in one place.";
+  }
+}
+
+async function ensureUserDocuments(user) {
+  const profileRef = doc(db, "profiles", user.uid);
+  const snap = await getDoc(profileRef);
+
+  if (!snap.exists()) {
+    profile = {
+      displayName: user.displayName || "",
+      email: user.email || "",
+      phone: "",
+      accountType: "both",
+      state: "",
+      town: "",
+      bio: "",
+      photoURL: "",
+      publicProfile: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await setDoc(profileRef, profile);
+  } else {
+    profile = snap.data() || {};
+  }
+
+  const sellerRef = doc(db, "sellers", user.uid);
+  const sellerSnap = await getDoc(sellerRef);
+
+  if (!sellerSnap.exists()) {
+    await setDoc(sellerRef, {
+      uid: user.uid,
+      email: user.email || "",
+      displayName:
+        user.displayName ||
+        profile.displayName ||
+        "PoultryLink member",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  } else {
+    await setDoc(
+      sellerRef,
+      {
+        uid: user.uid,
+        email: user.email || "",
+        displayName:
+          user.displayName ||
+          profile.displayName ||
+          sellerSnap.data().displayName ||
+          "PoultryLink member",
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  }
+
+  const userRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email || "",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+  }
+
+  fillProfileForm();
+}
+
+function fillProfileForm() {
+  const map = {
+    profileDisplayName:
+      profile.displayName || currentUser?.displayName || "",
+    profilePhone: profile.phone || "",
+    profileState: profile.state || "",
+    profileTown: profile.town || "",
+    profileBio: profile.bio || ""
+  };
+
+  Object.entries(map).forEach(([id, val]) => {
+    if ($(id)) {
+      $(id).value = val;
+    }
+  });
+
+  if ($("profileAccountType")) {
+    $("profileAccountType").value =
+      profile.accountType || "both";
+  }
+
+  if ($("profileEmail")) {
+    $("profileEmail").value =
+      currentUser?.email || profile.email || "";
+  }
+
+  if ($("profileBioCount")) {
+    $("profileBioCount").textContent =
+      String((profile.bio || "").length);
+  }
+
+  if ($("profileState")) {
+    $("profileState").value = profile.state || "";
+  }
+
+  if ($("profileTown")) {
+    $("profileTown").value = profile.town || "";
+  }
+
+  fillStorefrontForm();
+  updateAuthUI();
+}
+
+function fillStorefrontForm() {
+  const m = {
+    storeName:
+      storefront.name ||
+      profile.businessName ||
+      profile.displayName ||
+      currentUser?.displayName ||
+      "",
+
+    storeBusinessType:
+      storefront.businessType || "Poultry farm",
+
+    storePhone:
+      storefront.phone || profile.phone || "",
+
+    storeState:
+      storefront.state || profile.state || "",
+
+    storeTown:
+      storefront.town || profile.town || "",
+
+    storeDescription:
+      storefront.description || profile.bio || "",
+
+    storeContactMethod:
+      storefront.contactMethod || "phone"
+  };
+
+  Object.entries(m).forEach(([id, val]) => {
+    if ($(id)) {
+      $(id).value = val;
+    }
+  });
+
+  const status = storefront.publicStatus || "private";
+
+  if ($("storePublicStatus")) {
+    $("storePublicStatus").value = status;
+  }
+
+  if ($("storefrontStatusPill")) {
+    $("storefrontStatusPill").textContent =
+      status === "public"
+        ? "Public storefront"
+        : "Private storefront";
+  }
+
+  if ($("storefrontSummary")) {
+    $("storefrontSummary").textContent =
+      storefront.name
+        ? `${storefront.name} · ${
+            [storefront.town, storefront.state]
+              .filter(Boolean)
+              .join(", ")
+          }`
+        : "Complete your storefront details.";
+  }
+}
+
+function productTimestamp(p) {
   return p.createdAt?.toMillis?.() ||
     p.updatedAt?.toMillis?.() ||
     0;
 }
 
-function listingArt(p) {
-  const [emoji, cls] = artFor(p);
-
-  return `
-    <div class="listing-art ${escapeHTML(p.art || cls)}">
-      <span class="listing-tag">
-        ${escapeHTML(p.category || "Poultry")}
-      </span>
-      <span class="art-emoji">
-        ${escapeHTML(p.emoji || emoji)}
-      </span>
-    </div>
-  `;
+function productArt(p) {
+  return p.emoji || artMap[p.category] || "🐔";
 }
 
-function cardHTML(p) {
-  const owner = user && p.ownerId === user.uid;
-  const price = naira(p.price);
+function productCard(p) {
+  const saved = savedIds.has(p.id);
 
   return `
-    <article class="listing-card">
+    <article class="product-card">
+      <button
+        class="save-product-button ${saved ? "active" : ""}"
+        type="button"
+        data-action="save"
+        data-id="${esc(p.id)}"
+        aria-label="${saved ? "Remove saved product" : "Save product"}"
+      >${saved ? "♥" : "♡"}</button>
 
-      ${listingArt(p)}
-
-      <div class="listing-body">
-
-        <div class="listing-meta">
-          <span class="category-label">
-            ${escapeHTML(p.category || "Product")}
-          </span>
-
-          <span>
-            📍 ${escapeHTML([p.town, p.state].filter(Boolean).join(", "))}
-          </span>
-        </div>
-
-        <h3>${escapeHTML(p.title)}</h3>
-
-        <p class="listing-description">
-          ${escapeHTML(p.description || "Contact the seller for more details.")}
+      <button
+        class="product-card-main"
+        type="button"
+        data-action="details"
+        data-id="${esc(p.id)}"
+      >
+        <div class="product-art">${esc(productArt(p))}</div>
+        <span class="category-label">${esc(p.category || "Poultry")}</span>
+        <h3>${esc(p.title || "Poultry product")}</h3>
+        <p class="product-location">
+          ${esc([p.town, p.state].filter(Boolean).join(", ") || "Nigeria")}
         </p>
+        <p class="listing-price">${money(p.price)}
+          <small>/ ${esc(p.unit || "unit")}</small>
+        </p>
+        <p class="product-stock">
+          ${Number(p.quantity) > 0
+            ? `${Number(p.quantity)} ${esc(p.unit || "units")} available`
+            : "Out of stock"}
+        </p>
+      </button>
 
-        <div class="listing-price">
-          ${price}
-          <small>${escapeHTML(p.unit || "")}</small>
-        </div>
-
-        <div class="listing-details">
-          <span>
-            Available: ${escapeHTML(p.quantity || "Ask seller")}
-          </span>
-          <span>Seller listing</span>
-        </div>
-
-        <div class="seller-line">
-          <span class="seller-avatar">
-            ${escapeHTML((p.seller || "P").slice(0, 1).toUpperCase())}
-          </span>
-
-          <span>
-            Listed by
-            <strong>${escapeHTML(p.seller || "Poultry seller")}</strong>
-          </span>
-        </div>
-
-        <div class="card-actions">
-
-          <button
-            class="btn btn-outline"
-            data-action="details"
-            data-id="${p.id}">
-            View details
-          </button>
-
-          <button
-            class="btn btn-outline"
-            data-action="addcart"
-            data-id="${p.id}">
-            ＋ Cart
-          </button>
-
-          <a
-            class="btn btn-whatsapp"
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://wa.me/${normalisePhone(p.phone)}?text=${encodeURIComponent(
-              "Hello, I found your listing on PoultryLink: " + p.title
-            )}">
-            WhatsApp
-          </a>
-
-          ${
-            owner
-              ? `
-                <button
-                  class="btn btn-outline"
-                  data-action="edit"
-                  data-id="${p.id}">
-                  Edit
-                </button>
-
-                <button
-                  class="btn btn-danger"
-                  data-action="delete"
-                  data-id="${p.id}">
-                  Delete
-                </button>
-              `
-              : ""
-          }
-
-        </div>
+      <div class="product-card-footer">
+        <span>${esc(p.seller || "Poultry seller")}</span>
+        <button
+          class="btn btn-primary"
+          type="button"
+          data-action="addcart"
+          data-id="${esc(p.id)}"
+          ${Number(p.quantity) <= 0 ? "disabled" : ""}
+        >Add to cart</button>
       </div>
+
+      ${currentUser && p.ownerId === currentUser.uid ? `
+        <div class="product-owner-actions">
+          <button type="button" data-action="edit" data-id="${esc(p.id)}">Edit</button>
+          <button type="button" data-action="delete" data-id="${esc(p.id)}">Delete</button>
+        </div>
+      ` : ""}
     </article>
   `;
 }
 
-function applyFilters() {
-  const term = $("searchInput").value.trim().toLowerCase();
-  const cat = $("categoryFilter").value;
-  const loc = $("locationFilter").value;
-  const sort = $("sortSelect").value;
+function getFilteredProducts() {
+  const search = ($("searchInput")?.value || "")
+    .trim()
+    .toLowerCase();
 
-  filtered = listings.filter(p =>
-    (cat === "all" || p.category === cat) &&
-    (loc === "all" || p.state === loc) &&
-    (
-      !term ||
-      [
-        p.title,
-        p.category,
-        p.description,
-        p.seller,
-        p.town,
-        p.state
-      ].some(x => String(x || "").toLowerCase().includes(term))
-    )
-  );
+  const category = $("categoryFilter")?.value || "all";
+  const location = $("locationFilter")?.value || "all";
+  const sort = $("sortSelect")?.value || "newest";
 
-  if (sort === "low") {
-    filtered.sort((a, b) =>
-      (Number(a.price) || 0) - (Number(b.price) || 0)
-    );
-  } else if (sort === "high") {
-    filtered.sort((a, b) =>
-      (Number(b.price) || 0) - (Number(a.price) || 0)
-    );
+  let result = products.filter(p => {
+    if (p.status !== "active") return false;
+
+    const searchable = [
+      p.title,
+      p.category,
+      p.description,
+      p.seller,
+      p.state,
+      p.town
+    ].join(" ").toLowerCase();
+
+    const matchesSearch = !search || searchable.includes(search);
+
+    const matchesCategory =
+      category === "all" ||
+      category === "" ||
+      p.category === category;
+
+    const matchesLocation =
+      location === "all" ||
+      location === "" ||
+      p.state === location;
+
+    return matchesSearch && matchesCategory && matchesLocation;
+  });
+
+  if (sort === "price-low") {
+    result.sort((a, b) => Number(a.price) - Number(b.price));
+  } else if (sort === "price-high") {
+    result.sort((a, b) => Number(b.price) - Number(a.price));
+  } else if (sort === "oldest") {
+    result.sort((a, b) => productTimestamp(a) - productTimestamp(b));
   } else {
-    filtered.sort((a, b) => createdMillis(b) - createdMillis(a));
+    result.sort((a, b) => productTimestamp(b) - productTimestamp(a));
   }
 
-  renderListings();
+  return result;
 }
 
-function renderListings() {
-  const grid = $("listingGrid");
+function renderMarketplace() {
+  const grid = $("listingGrid") ||
+    $("marketplaceGrid") ||
+    $("productGrid");
 
-  grid.innerHTML = filtered.map(cardHTML).join("");
+  const results = getFilteredProducts();
 
-  $("resultsCount").textContent =
-    `${filtered.length} ${filtered.length === 1 ? "listing" : "listings"} found`;
-
-  $("emptyState").classList.toggle("hidden", filtered.length !== 0);
-  $("listingGrid").classList.toggle("hidden", filtered.length === 0);
-}
-
-function clearFilters() {
-  $("searchInput").value = "";
-  $("categoryFilter").value = "all";
-  $("locationFilter").value = "all";
-
-  document.querySelectorAll(".chip").forEach(c =>
-    c.classList.toggle("active", c.dataset.category === "all")
-  );
-
-  applyFilters();
-}
-
-function renderCartBadge() {
-  $("cartCount").textContent = cart.reduce(
-    (n, x) => n + x.qty,
-    0
-  );
-}
-
-function cartTotal() {
-  return cart.reduce(
-    (n, x) => n + x.price * x.qty,
-    0
-  );
-}
-
-function renderCart() {
-  const box = $("cartContent");
-
-  if (!cart.length) {
-    box.innerHTML = `
-      <div class="empty-state">
-        <span>🛒</span>
-        <h3>Your cart is empty</h3>
-        <p>Add products from the marketplace to start an order.</p>
-        <button class="btn btn-outline" data-close="cartDialog">
-          Continue shopping
-        </button>
-      </div>
-    `;
-
-    $("checkoutButton").disabled = true;
-  } else {
-    box.innerHTML = cart.map(x => `
-      <div class="cart-row">
-
-        <div>
-          <h3>${escapeHTML(x.title)}</h3>
-          <p>${escapeHTML(x.seller)} · ${naira(x.price)} each</p>
-          <p>${escapeHTML(x.quantityText || "")}</p>
-        </div>
-
-        <div class="cart-row-right">
-          <strong>${naira(x.price * x.qty)}</strong>
-
-          <div class="qty-controls">
-
-            <button
-              data-cart-action="minus"
-              data-id="${x.id}"
-              aria-label="Decrease quantity">
-              −
-            </button>
-
-            <b>${x.qty}</b>
-
-            <button
-              data-cart-action="plus"
-              data-id="${x.id}"
-              aria-label="Increase quantity">
-              +
-            </button>
-
-            <button
-              data-cart-action="remove"
-              data-id="${x.id}"
-              aria-label="Remove item">
-              ×
-            </button>
-
-          </div>
-        </div>
-      </div>
-    `).join("");
-
-    $("checkoutButton").disabled = false;
+  if ($("listingLoading")) {
+    $("listingLoading").classList.add("hidden");
   }
 
-  $("cartTotal").textContent = naira(cartTotal());
+  if ($("resultsCount")) {
+    $("resultsCount").textContent =
+      `${results.length} ${results.length === 1 ? "product" : "products"} found`;
+  }
 
+  if ($("marketplaceCount")) {
+    $("marketplaceCount").textContent = String(results.length);
+  }
+
+  if (grid) {
+    grid.innerHTML = results.length
+      ? results.map(productCard).join("")
+      : `
+        <div class="empty-state">
+          <h3>No products found</h3>
+          <p>Try another search or clear your filters.</p>
+          <button class="btn btn-primary" id="emptyStateClearButton" type="button">
+            Clear filters
+          </button>
+        </div>
+      `;
+  }
+
+  const empty = $("marketplaceEmptyState");
+
+  if (empty) {
+    empty.classList.toggle("hidden", results.length > 0);
+  }
+
+  renderMyListings();
+  renderInventory();
   renderCartBadge();
 }
 
-function addToCart(p) {
-  if (!user) {
-    openAuth();
-    toast("Sign in to add products to your cart.");
+function clearFilters() {
+  if ($("searchInput")) $("searchInput").value = "";
+  if ($("categoryFilter")) $("categoryFilter").value = "all";
+  if ($("locationFilter")) $("locationFilter").value = "all";
+
+  all("[data-category]").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.category === "all"
+    );
+  });
+
+  renderMarketplace();
+}
+
+function startProductsListener() {
+  if (unsubscribeProducts) {
+    unsubscribeProducts();
+  }
+
+  const activeProductsQuery = query(
+    collection(db, "products"),
+    where("status", "==", "active")
+  );
+
+  unsubscribeProducts = onSnapshot(
+    activeProductsQuery,
+    snapshot => {
+      products = snapshot.docs.map(item => ({
+        id: item.id,
+        ...item.data()
+      }));
+
+      renderMarketplace();
+      renderSellerDirectory();
+      renderSavedProducts();
+    },
+    error => {
+      console.error("Marketplace loading error:", error);
+
+      if ($("listingLoading")) {
+        $("listingLoading").classList.add("hidden");
+      }
+
+      if ($("resultsCount")) {
+        $("resultsCount").textContent = "Marketplace could not load";
+      }
+
+      showToast(friendlyError(error));
+    }
+  );
+}
+
+function readCart() {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(CART_KEY) || "[]"
+    );
+
+    return stored.filter(item =>
+      item &&
+      typeof item.id === "string" &&
+      Number.isFinite(Number(item.price)) &&
+      Number.isFinite(Number(item.qty)) &&
+      Number(item.qty) > 0
+    );
+  } catch {
+    return [];
+  }
+}
+
+function persistCart() {
+  localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  renderCartBadge();
+}
+
+function renderCartBadge() {
+  const count = cart.reduce(
+    (total, item) => total + (Number(item.qty) || 0),
+    0
+  );
+
+  if ($("cartCount")) {
+    $("cartCount").textContent = String(count);
+  }
+
+  if ($("cartBadge")) {
+    $("cartBadge").textContent = String(count);
+    $("cartBadge").classList.toggle("hidden", count === 0);
+  }
+}
+
+function totalCart() {
+  return cart.reduce(
+    (total, item) =>
+      total +
+      (Number(item.price) || 0) *
+      (Number(item.qty) || 0),
+    0
+  );
+}
+
+function addToCart(product) {
+  if (!currentUser) {
+    openAuth("login");
+    showToast("Sign in before adding products to your cart.");
     return;
   }
 
-  if (p.ownerId === user.uid) {
-    toast("You cannot order your own listing.");
+  if (product.ownerId === currentUser.uid) {
+    showToast("You cannot order your own listing.");
     return;
   }
 
-  const item = cart.find(x => x.id === p.id);
+  if (Number(product.quantity) <= 0) {
+    showToast("This listing is currently out of stock.");
+    return;
+  }
 
-  if (item) {
-    item.qty = Math.min(item.qty + 1, 99);
+  const existing = cart.find(item => item.id === product.id);
+
+  if (existing) {
+    existing.qty = Math.min(
+      Number(existing.qty) + 1,
+      Number(product.quantity)
+    );
   } else {
     cart.push({
-      id: p.id,
-      title: p.title,
-      price: Number(p.price) || 0,
-      seller: p.seller || "Seller",
-      ownerId: p.ownerId || "",
-      phone: p.phone || "",
-      quantityText: p.quantity || "",
-      unit: p.unit || "",
+      id: product.id,
+      title: product.title,
+      price: Number(product.price) || 0,
+      seller: product.seller || "Seller",
+      ownerId: product.ownerId || "",
+      phone: product.phone || "",
+      quantity: Number(product.quantity) || 0,
+      unit: product.unit || "unit",
       qty: 1
     });
   }
 
-  saveCart();
-  toast("Added to your cart.");
+  persistCart();
+  renderCart();
+  showToast("Added to your cart.");
 }
 
-function openAuth() {
-  updateAuthInterface();
-  openDialog("authDialog");
-}
+function renderCart() {
+  renderCartBadge();
 
-function setAuthMode(mode) {
-  authMode = mode;
+  const container = $("cartItems") ||
+    $("cartContent");
 
-  const signup = mode === "signup";
+  if (!container) return;
 
-  $("authTitle").textContent =
-    signup ? "Create your account" : "Welcome back";
+  if (!cart.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>Your cart is empty</h3>
+        <p>Browse the marketplace to find poultry products.</p>
+      </div>
+    `;
 
-  $("authSubtitle").textContent =
-    signup
-      ? "Create an account to buy and sell on PoultryLink."
-      : "Sign in to manage listings and orders.";
-
-  $("authNameField").classList.toggle("hidden", !signup);
-  $("authName").required = signup;
-
-  $("authPassword").autocomplete =
-    signup ? "new-password" : "current-password";
-
-  $("authSubmitButton").textContent =
-    signup ? "Create account" : "Sign in";
-
-  $("authSwitchButton").textContent =
-    signup
-      ? "Already have an account? Sign in"
-      : "Need an account? Create one";
-
-  $("authMessage").textContent = "";
-}
-
-function updateAuthInterface() {
-  const signed = !!user;
-
-  $("signInButton").textContent =
-    signed ? "My account" : "Sign in";
-
-  $("accountContent").classList.toggle("hidden", signed);
-  $("signedInControls").classList.toggle("hidden", !signed);
-  $("authForm").classList.toggle("hidden", signed);
-  $("authSwitchButton").classList.toggle("hidden", signed);
-
-  if (signed) {
-    $("accountName").textContent =
-      user.displayName || "PoultryLink member";
-
-    $("accountEmail").textContent = user.email || "";
-  } else {
-    setAuthMode(authMode);
-  }
-}
-
-async function saveSellerProfile(name) {
-  if (!user) return;
-
-  const ref = doc(db, "sellers", user.uid);
-  const snap = await getDoc(ref);
-
-  const payload = {
-    uid: user.uid,
-    email: user.email || "",
-    displayName: name || user.displayName || "PoultryLink seller",
-    updatedAt: serverTimestamp()
-  };
-
-  if (!snap.exists()) {
-    payload.createdAt = serverTimestamp();
-  }
-
-  await setDoc(ref, payload, { merge: true });
-}
-
-$("authForm").addEventListener("submit", async e => {
-  e.preventDefault();
-
-  $("authMessage").textContent = "Working…";
-  $("authSubmitButton").disabled = true;
-
-  try {
-    if (authMode === "signup") {
-      const name = $("authName").value.trim();
-
-      const cred = await createUserWithEmailAndPassword(
-        auth,
-        $("authEmail").value.trim(),
-        $("authPassword").value
-      );
-
-      if (name) {
-        await updateProfile(cred.user, {
-          displayName: name
-        });
-      }
-
-      user = auth.currentUser;
-
-      await saveSellerProfile(name);
-
-      toast("Account created successfully.");
-    } else {
-      await signInWithEmailAndPassword(
-        auth,
-        $("authEmail").value.trim(),
-        $("authPassword").value
-      );
-
-      toast("Signed in successfully.");
+    if ($("cartSubtotal")) {
+      $("cartSubtotal").textContent = money(0);
     }
 
-    closeDialog("authDialog");
-    updateAuthInterface();
-    renderListings();
-    loadOrders();
-  } catch (err) {
-    $("authMessage").textContent = errorText(err);
-  } finally {
-    $("authSubmitButton").disabled = false;
-  }
-});
+    if ($("cartTotal")) {
+      $("cartTotal").textContent = money(0);
+    }
 
-$("authSwitchButton").addEventListener("click", () => {
-  setAuthMode(authMode === "signin" ? "signup" : "signin");
-});
+    if ($("checkoutButton")) $("checkoutButton").disabled = true;
 
-$("signInButton").addEventListener("click", () => {
-  openAuth();
-});
+    if ($("proceedToCheckoutButton")) {
+      $("proceedToCheckoutButton").disabled = true;
+    }
 
-$("signOutButton").addEventListener("click", async () => {
-  try {
-    await signOut(auth);
-    closeDialog("authDialog");
-    toast("Signed out.");
-  } catch (e) {
-    toast(errorText(e));
-  }
-});
-
-function openListing(id = null) {
-  if (!user) {
-    openAuth();
-    toast("Sign in before publishing a listing.");
     return;
   }
 
-  editingId = id;
+  container.innerHTML = cart.map(item => `
+    <article class="cart-item">
+      <div class="cart-item-info">
+        <h3>${esc(item.title)}</h3>
+        <p>${money(item.price)} / ${esc(item.unit || "unit")}</p>
+        <strong>${money(item.price * item.qty)}</strong>
+      </div>
 
-  $("listingForm").reset();
-  $("formMessage").textContent = "";
+      <div class="cart-item-controls">
+        <button type="button" data-cart-action="minus" data-id="${esc(item.id)}">−</button>
+        <span>${Number(item.qty)}</span>
+        <button type="button" data-cart-action="plus" data-id="${esc(item.id)}">+</button>
+        <button type="button" data-cart-action="remove" data-id="${esc(item.id)}">Remove</button>
+      </div>
+    </article>
+  `).join("");
 
-  $("listingModalTitle").textContent =
-    id ? "Edit your listing" : "Create a listing";
+  if ($("cartSubtotal")) {
+    $("cartSubtotal").textContent = money(totalCart());
+  }
 
-  $("saveListingButton").textContent =
-    id ? "Save changes" : "Publish listing";
+  if ($("cartTotal")) {
+    $("cartTotal").textContent = money(totalCart());
+  }
 
-  if (id) {
-    const p = listings.find(x => x.id === id);
+  if ($("checkoutButton")) $("checkoutButton").disabled = false;
 
-    if (!p || p.ownerId !== user.uid) {
-      toast("You can only edit your own listings.");
-      return;
+  if ($("proceedToCheckoutButton")) {
+    $("proceedToCheckoutButton").disabled = false;
+  }
+}
+
+async function registerAccount() {
+  const name = (
+    $("authDisplayName") ||
+    $("authName")
+  )?.value.trim();
+
+  const email = $("authEmail")?.value.trim();
+  const password = $("authPassword")?.value;
+  const confirmPassword = $("authConfirmPassword")?.value;
+  const error = $("authError") || $("authMessage");
+
+  if (error) error.textContent = "";
+
+  if (!email || !password) {
+    showToast("Enter your email and password.");
+    return;
+  }
+
+  if (password.length < 6) {
+    showToast("Your password must contain at least six characters.");
+    return;
+  }
+
+  if (activeAuthMode === "register" && !name) {
+    showToast("Enter your name.");
+    return;
+  }
+
+  if (
+    activeAuthMode === "register" &&
+    confirmPassword !== undefined &&
+    password !== confirmPassword
+  ) {
+    showToast("Your passwords do not match.");
+    return;
+  }
+
+  try {
+    const credential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    if (name) {
+      await updateProfile(credential.user, {
+        displayName: name
+      });
     }
 
-    $("listingTitle").value = p.title || "";
-    $("listingCategory").value = p.category || "Eggs";
-    $("listingPrice").value = p.price ?? "";
-    $("listingQuantity").value = p.quantity || "";
-    $("listingUnit").value = p.unit || "";
-    $("listingState").value = p.state || "";
-    $("listingTown").value = p.town || "";
-    $("listingSeller").value = p.seller || "";
-    $("listingPhone").value = p.phone || "";
-    $("listingDescription").value = p.description || "";
-  } else {
-    $("listingSeller").value = user.displayName || "";
+    currentUser = auth.currentUser;
+
+    await ensureUserDocuments(currentUser);
+
+    closeDialog("authDialog");
+
+    updateAuthUI();
+
+    showToast("Your PoultryLink account has been created.");
+  } catch (errorObject) {
+    if (error) {
+      error.textContent = friendlyError(errorObject);
+    } else {
+      showToast(friendlyError(errorObject));
+    }
   }
+}
+
+async function loginAccount() {
+  const email = $("authEmail")?.value.trim();
+  const password = $("authPassword")?.value;
+
+  const error = $("authError") || $("authMessage");
+
+  if (error) error.textContent = "";
+
+  if (!email || !password) {
+    showToast("Enter your email and password.");
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    closeDialog("authDialog");
+
+    showToast("You are signed in.");
+  } catch (errorObject) {
+    if (error) {
+      error.textContent = friendlyError(errorObject);
+    } else {
+      showToast(friendlyError(errorObject));
+    }
+  }
+}
+
+async function resetPassword() {
+  const email = $("authEmail")?.value.trim();
+
+  if (!email) {
+    showToast("Enter your email address first.");
+    return;
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+
+    showToast("Password reset instructions have been sent.");
+  } catch (errorObject) {
+    showToast(friendlyError(errorObject));
+  }
+}
+
+async function logoutAccount() {
+  try {
+    await signOut(auth);
+
+    currentUser = null;
+    profile = {};
+    storefront = {};
+    savedIds.clear();
+
+    closeDialog("authDialog");
+
+    updateAuthUI();
+
+    showToast("You have signed out.");
+  } catch (errorObject) {
+    showToast(friendlyError(errorObject));
+  }
+}
+
+async function saveProfile(event) {
+  event?.preventDefault();
+
+  if (!currentUser) {
+    openAuth("login");
+    return;
+  }
+
+  const displayName = $("profileDisplayName")?.value.trim() ||
+    $("authDisplayName")?.value.trim() ||
+    currentUser.displayName ||
+    "";
+
+  const phone = $("profilePhone")?.value.trim() || "";
+  const state = $("profileState")?.value || "";
+  const town = $("profileTown")?.value.trim() || "";
+  const bioText = $("profileBio")?.value.trim() || "";
+  const accountType = $("profileAccountType")?.value || "both";
+
+  if (!displayName) {
+    showToast("Please enter your name.");
+    return;
+  }
+
+  try {
+    await updateProfile(currentUser, {
+      displayName
+    });
+
+    const profileData = {
+      displayName,
+      email: currentUser.email || "",
+      phone,
+      state,
+      town,
+      bio: bioText,
+      accountType,
+      updatedAt: serverTimestamp()
+    };
+
+    await setDoc(
+      doc(db, "profiles", currentUser.uid),
+      profileData,
+      { merge: true }
+    );
+
+    await setDoc(
+      doc(db, "sellers", currentUser.uid),
+      {
+        uid: currentUser.uid,
+        email: currentUser.email || "",
+        displayName,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    profile = {
+      ...profile,
+      ...profileData
+    };
+
+    updateAuthUI();
+
+    showToast("Your profile has been saved.");
+  } catch (errorObject) {
+    showToast(friendlyError(errorObject));
+  }
+}
+
+function openListing(productId = null) {
+  if (!currentUser) {
+    openAuth("login");
+    showToast("Sign in before publishing a listing.");
+    return;
+  }
+
+  const form = $("listingForm");
+
+  if (!form) {
+    showToast("The listing form is not available in this page.");
+    return;
+  }
+
+  form.reset();
+
+  if ($("listingId")) {
+    $("listingId").value = productId || "";
+  }
+
+  const product = productId
+    ? products.find(item => item.id === productId)
+    : null;
+
+  if (productId && (!product || product.ownerId !== currentUser.uid)) {
+    showToast("You can only edit your own listings.");
+    return;
+  }
+
+  const values = {
+    listingTitle: product?.title || "",
+    listingCategory: product?.category || "Eggs",
+    listingPrice: product?.price ?? "",
+    listingQuantity: product?.quantity ?? "",
+    listingUnit: product?.unit || "",
+    listingState: product?.state || profile.state || "",
+    listingTown: product?.town || profile.town || "",
+    listingSeller:
+      product?.seller ||
+      currentUser.displayName ||
+      profile.displayName ||
+      "",
+    listingPhone: product?.phone || profile.phone || "",
+    listingDescription: product?.description || ""
+  };
+
+  Object.entries(values).forEach(([id, value]) => {
+    if ($(id)) {
+      $(id).value = value;
+    }
+  });
+
+  if ($("listingStatus")) {
+    $("listingStatus").value = product?.status || "active";
+  }
+
+  if ($("listingModalTitle")) {
+    $("listingModalTitle").textContent =
+      product ? "Edit your listing" : "Create a listing";
+  }
+
+  if ($("saveListingButton")) {
+    $("saveListingButton").textContent =
+      product ? "Save changes" : "Publish listing";
+  }
+
+  showError("formMessage", "");
 
   openDialog("listingDialog");
 }
 
-["sellHeaderButton", "heroSellButton", "sellBannerButton"].forEach(id => {
-  $(id).addEventListener("click", () => openListing());
-});
+async function saveListing(event) {
+  event?.preventDefault();
 
-$("listingForm").addEventListener("submit", async e => {
-  e.preventDefault();
-
-  if (!user) {
-    toast("Please sign in first.");
+  if (!currentUser) {
+    openAuth("login");
     return;
   }
 
-  const category = $("listingCategory").value;
-  const art = categoryArt[category] || ["🐔", "layers"];
+  const title = $("listingTitle")?.value.trim() || "";
+  const category = $("listingCategory")?.value || "";
+  const price = Number($("listingPrice")?.value);
+  const quantity = Number($("listingQuantity")?.value);
+  const unit = $("listingUnit")?.value.trim() || "";
+  const state = $("listingState")?.value || "";
+  const town = $("listingTown")?.value.trim() || "";
+  const seller = $("listingSeller")?.value.trim() || "";
+  const phone = $("listingPhone")?.value.trim() || "";
+  const description =
+    $("listingDescription")?.value.trim() || "";
 
-  const data = {
-    title: $("listingTitle").value.trim(),
+  const status = $("listingStatus")?.value || "active";
+
+  const productId = $("listingId")?.value || "";
+
+  if (!title || !category || !unit || !state || !seller || !phone) {
+    showToast("Complete all required listing fields.");
+    return;
+  }
+
+  if (!Number.isFinite(price) || price < 0) {
+    showToast("Enter a valid price.");
+    return;
+  }
+
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    showToast("Enter a valid quantity.");
+    return;
+  }
+
+  if (!["active", "inactive"].includes(status)) {
+    showToast("Choose a valid listing status.");
+    return;
+  }
+
+  const productData = {
+    title,
     category,
-    price: Number($("listingPrice").value),
-    quantity: $("listingQuantity").value.trim(),
-    unit: $("listingUnit").value.trim(),
-    state: $("listingState").value,
-    town: $("listingTown").value.trim(),
-    seller: $("listingSeller").value.trim(),
-    phone: $("listingPhone").value.trim(),
-    description: $("listingDescription").value.trim(),
-    emoji: art[0],
-    art: art[1],
-    status: "active",
-    ownerId: user.uid,
+    price,
+    quantity,
+    unit,
+    state,
+    town,
+    seller,
+    phone,
+    description,
+    ownerId: currentUser.uid,
+    status,
     updatedAt: serverTimestamp()
   };
 
-  if (
-    !Number.isFinite(data.price) ||
-    data.price < 0 ||
-    data.price > 100000000
-  ) {
-    $("formMessage").textContent = "Enter a valid price.";
-    return;
-  }
+  const button = $("saveListingButton");
 
-  $("saveListingButton").disabled = true;
-  $("formMessage").textContent = "Saving listing…";
+  if (button) button.disabled = true;
 
   try {
-    if (editingId) {
+    if (productId) {
+      const existing = products.find(p => p.id === productId);
+
+      if (!existing || existing.ownerId !== currentUser.uid) {
+        throw new Error("You can only edit your own listings.");
+      }
+
       await updateDoc(
-        doc(db, "products", editingId),
-        data
+        doc(db, "products", productId),
+        productData
       );
     } else {
-      data.createdAt = serverTimestamp();
-
       await addDoc(
         collection(db, "products"),
-        data
+        {
+          ...productData,
+          createdAt: serverTimestamp()
+        }
       );
     }
 
     closeDialog("listingDialog");
 
-    toast(
-      editingId
-        ? "Listing updated."
-        : "Listing published."
+    showToast(
+      productId
+        ? "Your listing has been updated."
+        : "Your listing has been published."
     );
-  } catch (err) {
-    $("formMessage").textContent = errorText(err);
+  } catch (errorObject) {
+    showError("formMessage", friendlyError(errorObject));
   } finally {
-    $("saveListingButton").disabled = false;
+    if (button) button.disabled = false;
   }
-});
+}
 
-async function removeListing(id) {
-  const p = listings.find(x => x.id === id);
+async function deleteListing(productId) {
+  if (!currentUser) return;
 
-  if (!user || !p || p.ownerId !== user.uid) {
-    toast("You can only delete your own listings.");
+  const product = products.find(p => p.id === productId);
+
+  if (!product || product.ownerId !== currentUser.uid) {
+    showToast("You can only delete your own listings.");
     return;
   }
 
-  if (!confirm(`Delete “${p.title}”? This cannot be undone.`)) {
+  const confirmed = confirm(
+    `Delete "${product.title}"? This cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await deleteDoc(doc(db, "products", productId));
+
+    cart = cart.filter(item => item.id !== productId);
+
+    persistCart();
+
+    renderCart();
+
+    showToast("Listing deleted.");
+  } catch (errorObject) {
+    showToast(friendlyError(errorObject));
+  }
+}
+
+function renderMyListings() {
+  const container =
+    $("myListings") ||
+    $("dashboardListings") ||
+    $("sellerListings");
+
+  if (!container) return;
+
+  if (!currentUser) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>Sign in to manage your listings</h3>
+      </div>
+    `;
+    return;
+  }
+
+  const ownProducts = products.filter(
+    item => item.ownerId === currentUser.uid
+  );
+
+  if (!ownProducts.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>No active listings yet</h3>
+        <p>Publish your first product to start selling.</p>
+        <button class="btn btn-primary" data-action="new-listing">
+          Create listing
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = ownProducts.map(productCard).join("");
+}
+
+function renderInventory() {
+  const container = $("inventoryList");
+
+  if (!container || !currentUser) return;
+
+  const ownProducts = products.filter(
+    item => item.ownerId === currentUser.uid
+  );
+
+  container.innerHTML = ownProducts.length
+    ? ownProducts.map(item => `
+      <article class="inventory-row">
+        <div>
+          <strong>${esc(item.title)}</strong>
+          <p>${Number(item.quantity) || 0} ${esc(item.unit || "units")}</p>
+        </div>
+        <span class="status-pill">
+          ${esc(item.status || "active")}
+        </span>
+        <button
+          type="button"
+          data-action="edit"
+          data-id="${esc(item.id)}"
+        >Edit</button>
+      </article>
+    `).join("")
+    : `<p class="small-muted">No active listings available for inventory.</p>`;
+}
+
+async function loadSavedProducts() {
+  if (!currentUser) {
+    savedIds.clear();
+    renderSavedProducts();
     return;
   }
 
   try {
-    await deleteDoc(doc(db, "products", id));
+    const snapshot = await getDocs(
+      collection(
+        db,
+        "users",
+        currentUser.uid,
+        "savedProducts"
+      )
+    );
 
-    cart = cart.filter(x => x.id !== id);
-    saveCart();
+    savedIds = new Set(
+      snapshot.docs.map(item => item.id)
+    );
 
-    toast("Listing deleted.");
-  } catch (e) {
-    toast(errorText(e));
+    renderMarketplace();
+    renderSavedProducts();
+  } catch (errorObject) {
+    console.warn("Saved products could not be loaded:", errorObject);
   }
 }
 
-function showDetails(p) {
-  $( "detailContent" ).innerHTML = `
+async function toggleSavedProduct(productId) {
+  if (!currentUser) {
+    openAuth("login");
+    showToast("Sign in to save products.");
+    return;
+  }
+
+  const ref = doc(
+    db,
+    "users",
+    currentUser.uid,
+    "savedProducts",
+    productId
+  );
+
+  try {
+    if (savedIds.has(productId)) {
+      await deleteDoc(ref);
+      savedIds.delete(productId);
+      showToast("Product removed from saved items.");
+    } else {
+      await setDoc(ref, {
+        productId,
+        savedAt: serverTimestamp()
+      });
+
+      savedIds.add(productId);
+
+      showToast("Product saved.");
+    }
+
+    renderMarketplace();
+    renderSavedProducts();
+  } catch (errorObject) {
+    showToast(friendlyError(errorObject));
+  }
+}
+
+function renderSavedProducts() {
+  const container = $("savedProducts");
+
+  if (!container) return;
+
+  if (!currentUser) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>Sign in to view saved products</h3>
+      </div>
+    `;
+    return;
+  }
+
+  const saved = products.filter(
+    item => savedIds.has(item.id)
+  );
+
+  container.innerHTML = saved.length
+    ? saved.map(productCard).join("")
+    : `
+      <div class="empty-state">
+        <h3>No saved products yet</h3>
+        <p>Save products you may want to revisit.</p>
+      </div>
+    `;
+}
+
+function showDetails(product) {
+  const container = $("detailContent");
+
+  if (!container) return;
+
+  container.innerHTML = `
     <div class="detail-hero">
-      ${listingArt(p)}
-
+      <div class="product-art">${esc(productArt(product))}</div>
       <div>
-        <h2>${escapeHTML(p.title)}</h2>
-
-        <div class="listing-price">
-          ${naira(p.price)}
-          <small>${escapeHTML(p.unit || "")}</small>
-        </div>
-
-        <span class="category-label">
-          ${escapeHTML(p.category)}
-        </span>
+        <h2>${esc(product.title)}</h2>
+        <p class="listing-price">${money(product.price)}</p>
+        <span class="category-label">${esc(product.category)}</span>
       </div>
     </div>
 
-    <p class="detail-copy">
-      ${escapeHTML(p.description || "No description supplied.")}
-    </p>
+    <p>${esc(product.description || "No description provided.")}</p>
 
     <div class="detail-facts">
-
-      <div class="detail-fact">
-        <small>Available quantity</small>
-        <strong>${escapeHTML(p.quantity || "Ask seller")}</strong>
-      </div>
-
-      <div class="detail-fact">
-        <small>Location</small>
-        <strong>
-          ${escapeHTML([p.town, p.state].filter(Boolean).join(", "))}
-        </strong>
-      </div>
-
-      <div class="detail-fact">
-        <small>Seller</small>
-        <strong>${escapeHTML(p.seller || "Seller")}</strong>
-      </div>
-
-      <div class="detail-fact">
-        <small>Phone</small>
-        <strong>${escapeHTML(p.phone || "Not provided")}</strong>
-      </div>
-
+      <p><strong>Available:</strong>
+        ${Number(product.quantity) || 0} ${esc(product.unit || "units")}
+      </p>
+      <p><strong>Location:</strong>
+        ${esc([product.town, product.state].filter(Boolean).join(", "))}
+      </p>
+      <p><strong>Seller:</strong> ${esc(product.seller || "Seller")}</p>
+      <p><strong>Contact:</strong> ${esc(product.phone || "Not provided")}</p>
     </div>
 
     <div class="card-actions">
-
       <button
+        type="button"
         class="btn btn-primary"
         data-action="addcart"
-        data-id="${p.id}">
-        ＋ Add to cart
-      </button>
+        data-id="${esc(product.id)}"
+      >Add to cart</button>
 
       <a
-        class="btn btn-whatsapp"
+        class="btn btn-outline"
         target="_blank"
         rel="noopener noreferrer"
-        href="https://wa.me/${normalisePhone(p.phone)}?text=${encodeURIComponent(
-          "Hello, I found your listing on PoultryLink: " + p.title
-        )}">
-        Contact seller on WhatsApp
-      </a>
-
+        href="https://wa.me/${esc(product.phone || "")}"
+      >Contact seller</a>
     </div>
   `;
 
   openDialog("detailDialog");
 }
 
-document.addEventListener("click", async e => {
-  const close = e.target.closest("[data-close]");
-
-  if (close) {
-    closeDialog(close.dataset.close);
-    return;
-  }
-
-  const act = e.target.closest("[data-action]");
-
-  if (act) {
-    const p = listings.find(x => x.id === act.dataset.id);
-
-    if (act.dataset.action === "addcart" && p) {
-      addToCart(p);
-
-      if ($("detailDialog").open) {
-        closeDialog("detailDialog");
-      }
-    }
-
-    if (act.dataset.action === "details" && p) {
-      showDetails(p);
-    }
-
-    if (act.dataset.action === "edit") {
-      openListing(act.dataset.id);
-    }
-
-    if (act.dataset.action === "delete") {
-      removeListing(act.dataset.id);
-    }
-  }
-
-  const ca = e.target.closest("[data-cart-action]");
-
-  if (ca) {
-    const item = cart.find(x => x.id === ca.dataset.id);
-
-    if (!item) return;
-
-    if (ca.dataset.cartAction === "plus") {
-      item.qty = Math.min(item.qty + 1, 99);
-    }
-
-    if (ca.dataset.cartAction === "minus") {
-      item.qty = Math.max(1, item.qty - 1);
-    }
-
-    if (ca.dataset.cartAction === "remove") {
-      cart = cart.filter(x => x.id !== item.id);
-    }
-
-    saveCart();
-    renderCart();
-  }
-});
-
-$("searchForm").addEventListener("submit", e => {
-  e.preventDefault();
-
-  applyFilters();
-
-  $("marketplace").scrollIntoView({
-    behavior: "smooth"
-  });
-});
-
-$("categoryFilter").addEventListener("change", () => {
-  document.querySelectorAll(".chip").forEach(c =>
-    c.classList.toggle(
-      "active",
-      c.dataset.category === $("categoryFilter").value
-    )
-  );
-
-  applyFilters();
-});
-
-$("locationFilter").addEventListener("change", applyFilters);
-$("searchInput").addEventListener("input", applyFilters);
-$("sortSelect").addEventListener("change", applyFilters);
-$("clearFiltersButton").addEventListener("click", clearFilters);
-$("emptyClearButton").addEventListener("click", clearFilters);
-
-$("categoryChips").addEventListener("click", e => {
-  const b = e.target.closest("[data-category]");
-
-  if (!b) return;
-
-  $("categoryFilter").value = b.dataset.category;
-
-  document.querySelectorAll(".chip").forEach(c =>
-    c.classList.toggle("active", c === b)
-  );
-
-  applyFilters();
-});
-
-$("cartOpenButton").addEventListener("click", () => {
-  renderCart();
-  openDialog("cartDialog");
-});
-
-$("checkoutButton").addEventListener("click", () => {
-  if (!user) {
-    closeDialog("cartDialog");
-    openAuth();
-    toast("Sign in to submit an order.");
-    return;
-  }
-
-  if (!cart.length) return;
-
-  $("buyerName").value = user.displayName || "";
-  $("buyerPhone").value = "";
-  $("buyerAddress").value = "";
-  $("buyerNote").value = "";
-  $("checkoutMessage").textContent = "";
-
-  closeDialog("cartDialog");
-  openDialog("checkoutDialog");
-});
-
-$("checkoutForm").addEventListener("submit", async e => {
-  e.preventDefault();
-
-  if (!user) {
-    toast("Please sign in again to submit an order.");
+function openCheckout() {
+  if (!currentUser) {
+    openAuth("login");
+    showToast("Sign in before placing an order.");
     return;
   }
 
   if (!cart.length) {
-    toast("Your cart is empty.");
+    showToast("Your cart is empty.");
     return;
   }
 
-  const btn = $("placeOrderButton");
+  renderCart();
 
-  btn.disabled = true;
-  $("checkoutMessage").textContent =
-    "Submitting your order request…";
+  if ($("buyerName")) {
+    $("buyerName").value =
+      profile.displayName || currentUser.displayName || "";
+  }
+
+  if ($("buyerEmail")) {
+    $("buyerEmail").value = currentUser.email || "";
+  }
+
+  if ($("buyerPhone")) {
+    $("buyerPhone").value = profile.phone || "";
+  }
+
+  if ($("checkoutMessage")) {
+    $("checkoutMessage").textContent = "";
+  }
+
+  closeDialog("cartDialog");
+
+  openDialog("checkoutDialog");
+}
+
+async function submitOrder(event) {
+  event?.preventDefault();
+
+  if (!currentUser) {
+    openAuth("login");
+    return;
+  }
+
+  if (!cart.length) {
+    showToast("Your cart is empty.");
+    return;
+  }
+
+  const buyerName = $("buyerName")?.value.trim() || "";
+  const buyerEmail = currentUser.email || "";
+  const buyerPhone = $("buyerPhone")?.value.trim() || "";
+  const buyerAddress = $("buyerAddress")?.value.trim() || "";
+  const buyerNote = $("buyerNote")?.value.trim() || "";
+
+  if (!buyerName || !buyerPhone || !buyerAddress) {
+    showError(
+      "checkoutMessage",
+      "Enter your name, phone number, and delivery address."
+    );
+    return;
+  }
+
+  const button = $("placeOrderButton");
+
+  if (button) button.disabled = true;
 
   try {
-    const currentItems = [];
+    const items = cart.map(item => ({
+      productId: item.id,
+      title: item.title,
+      quantity: Number(item.qty),
+      unitPrice: Number(item.price),
+      sellerId: item.ownerId || "",
+      unit: item.unit || ""
+    }));
 
-    for (const item of cart) {
-      const snap = await getDoc(
-        doc(db, "products", item.id)
-      );
+    const total = items.reduce(
+      (sum, item) => sum + item.quantity * item.unitPrice,
+      0
+    );
 
-      if (!snap.exists() || snap.data().status !== "active") {
-        throw new Error(
-          `The listing “${item.title}” is no longer available. Remove it from your cart and try again.`
-        );
-      }
-
-      const p = snap.data();
-
-      if (p.ownerId === user.uid) {
-        throw new Error(
-          "Your cart contains your own listing. Remove it before checkout."
-        );
-      }
-
-      currentItems.push({
-        productId: item.id,
-        title: String(p.title || item.title).slice(0, 100),
-        category: String(p.category || "").slice(0, 30),
-        unitPrice: Number(p.price) || 0,
-        quantity: item.qty,
-        sellerName: String(p.seller || "").slice(0, 80),
-        sellerId: String(p.ownerId || "").slice(0, 128),
-        unit: String(p.unit || "").slice(0, 40),
-        listingQuantity: String(p.quantity || "").slice(0, 80)
-      });
-    }
-
-    const order = {
-      buyerId: user.uid,
-      buyerEmail: String(user.email || "").slice(0, 160),
-      buyerName: $("buyerName").value.trim(),
-      buyerPhone: $("buyerPhone").value.trim(),
-      deliveryAddress: $("buyerAddress").value.trim(),
-      buyerNote: $("buyerNote").value.trim(),
-      items: currentItems,
-
-      total: currentItems.reduce(
-        (n, x) => n + x.unitPrice * x.quantity,
-        0
-      ),
-
+    await addDoc(collection(db, "orders"), {
+      buyerId: currentUser.uid,
+      buyerEmail,
+      buyerName,
+      buyerPhone,
+      buyerAddress,
+      buyerNote,
+      items,
+      total,
       currency: "NGN",
-      orderStatus: "awaiting_seller_confirmation",
-      paymentStatus: "not_integrated",
-      paymentNote:
-        "No payment has been collected or verified by PoultryLink.",
-
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    };
-
-    await addDoc(collection(db, "orders"), order);
+      orderStatus: "pending",
+      paymentStatus: "unpaid",
+      createdAt: serverTimestamp()
+    });
 
     cart = [];
-    saveCart();
+
+    persistCart();
+    renderCart();
 
     closeDialog("checkoutDialog");
 
-    toast("Order request submitted. No payment was collected.");
+    showToast(
+      "Order request submitted. Payment has not been collected."
+    );
 
     await loadOrders();
-
-    $("ordersSection").scrollIntoView({
-      behavior: "smooth"
-    });
-  } catch (err) {
-    $("checkoutMessage").textContent = errorText(err);
+  } catch (errorObject) {
+    showError("checkoutMessage", friendlyError(errorObject));
   } finally {
-    btn.disabled = false;
+    if (button) button.disabled = false;
   }
-});
+}
 
 async function loadOrders() {
-  const box = $("ordersContent");
+  const container = $("ordersContent");
 
-  if (!user) {
-    box.innerHTML = `
+  if (!container) return;
+
+  if (!currentUser) {
+    container.innerHTML = `
       <div class="empty-state">
-        <span>📦</span>
         <h3>Sign in to view your orders</h3>
-        <p>
-          Order requests are private to the account that submitted them.
-        </p>
-        <button class="btn btn-primary" id="ordersSignInButton">
-          Sign in
-        </button>
       </div>
     `;
+    return;
+  }
+
+  container.innerHTML = "<p>Loading your orders...</p>";
+
+  try {
+    const snapshot = await getDocs(
+      query(
+        collection(db, "orders"),
+        where("buyerId", "==", currentUser.uid)
+      )
+    );
+
+    const orders = snapshot.docs
+      .map(item => ({
+        id: item.id,
+        ...item.data()
+      }))
+      .sort((a, b) => {
+        const first = a.createdAt?.toMillis?.() || 0;
+        const second = b.createdAt?.toMillis?.() || 0;
+        return second - first;
+      });
+
+    if (!orders.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <h3>No orders yet</h3>
+          <p>Your submitted orders will appear here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = orders.map(order => `
+      <article class="order-card">
+        <h3>Order ${esc(order.id.slice(0, 8).toUpperCase())}</h3>
+        <p>Status: ${esc(order.orderStatus || "pending")}</p>
+        <p>Payment: ${esc(order.paymentStatus || "unpaid")}</p>
+        <p>Total: ${money(order.total)}</p>
+        <p>
+          ${Array.isArray(order.items)
+            ? order.items.map(item =>
+                `${esc(item.title)} × ${Number(item.quantity) || 1}`
+              ).join("<br>")
+            : ""}
+        </p>
+        <p class="small-muted">
+          This is an order request, not confirmation of payment or delivery.
+        </p>
+      </article>
+    `).join("");
+  } catch (errorObject) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <h3>Could not load orders</h3>
+        <p>${esc(friendlyError(errorObject))}</p>
+        <button type="button" id="retryOrdersButton">Try again</button>
+      </div>
+    `;
+  }
+}
+
+async function saveStorefront(event) {
+  event?.preventDefault();
+
+  if (!currentUser) {
+    openAuth("login");
+    return;
+  }
+
+  const storefrontData = {
+    name: $("storeName")?.value.trim() || "",
+    businessType: $("storeBusinessType")?.value || "",
+    phone: $("storePhone")?.value.trim() || "",
+    state: $("storeState")?.value || "",
+    town: $("storeTown")?.value.trim() || "",
+    description: $("storeDescription")?.value.trim() || "",
+    contactMethod: $("storeContactMethod")?.value || "phone",
+    publicStatus: $("storePublicStatus")?.value || "private",
+    updatedAt: serverTimestamp()
+  };
+
+  try {
+    await setDoc(
+      doc(db, "profiles", currentUser.uid),
+      {
+        storefront: storefrontData,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    storefront = storefrontData;
+
+    showToast(
+      "Storefront details saved to your private profile."
+    );
+
+    showToast(
+      "Public storefront publishing requires additional Firestore rules."
+    );
+  } catch (errorObject) {
+    showToast(friendlyError(errorObject));
+  }
+}
+
+function renderSellerDirectory() {
+  const container = $("sellerDirectory");
+
+  if (!container) return;
+
+  const uniqueSellers = new Map();
+
+  products.forEach(product => {
+    if (product.ownerId) {
+      if (!uniqueSellers.has(product.ownerId)) {
+        uniqueSellers.set(product.ownerId, {
+          name: product.seller || "Poultry seller",
+          state: product.state || "",
+          town: product.town || "",
+          count: 0
+        });
+      }
+
+      uniqueSellers.get(product.ownerId).count++;
+    }
+  });
+
+  const sellers = [...uniqueSellers.values()];
+
+  container.innerHTML = sellers.length
+    ? sellers.map(seller => `
+      <article class="seller-card">
+        <div class="seller-avatar">
+          ${esc((seller.name[0] || "P").toUpperCase())}
+        </div>
+        <h3>${esc(seller.name)}</h3>
+        <p>${esc([seller.town, seller.state].filter(Boolean).join(", "))}</p>
+        <p>${seller.count} active listings</p>
+      </article>
+    `).join("")
+    : `<p class="small-muted">No sellers with active listings yet.</p>`;
+}
+
+function setDashboardTab(tab) {
+  dashboardTab = tab;
+
+  all("[data-dashboard-tab]").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.dashboardTab === tab
+    );
+  });
+
+  all("[data-dashboard-panel]").forEach(panel => {
+    panel.classList.toggle(
+      "hidden",
+      panel.dataset.dashboardPanel !== tab
+    );
+  });
+
+  if (tab === "orders") loadOrders();
+  if (tab === "saved") renderSavedProducts();
+  if (tab === "storefront") fillStorefrontForm();
+  if (tab === "listings") renderMyListings();
+  if (tab === "inventory") renderInventory();
+}
+
+document.addEventListener("click", async event => {
+  const target = event.target;
+
+  const closeButton = target.closest("[data-close]");
+
+  if (closeButton) {
+    closeDialog(closeButton.dataset.close);
+    return;
+  }
+
+  const authModeButton = target.closest("[data-auth-mode]");
+
+  if (authModeButton) {
+    setAuthMode(authModeButton.dataset.authMode);
+    return;
+  }
+
+  const tabButton = target.closest("[data-dashboard-tab]");
+
+  if (tabButton) {
+    setDashboardTab(tabButton.dataset.dashboardTab);
+    return;
+  }
+
+  const cartAction = target.closest("[data-cart-action]");
+
+  if (cartAction) {
+    const item = cart.find(
+      product => product.id === cartAction.dataset.id
+    );
+
+    if (!item) return;
+
+    if (cartAction.dataset.cartAction === "plus") {
+      item.qty = Math.min(item.qty + 1, 99);
+    }
+
+    if (cartAction.dataset.cartAction === "minus") {
+      item.qty = Math.max(1, item.qty - 1);
+    }
+
+    if (cartAction.dataset.cartAction === "remove") {
+      cart = cart.filter(product => product.id !== item.id);
+    }
+
+    persistCart();
+    renderCart();
 
     return;
   }
 
-  box.innerHTML =
-    '<p class="small-muted">Loading your orders…</p>';
+  const actionButton = target.closest("[data-action]");
 
-  try {
-    const snap = await getDocs(
-      query(
-        collection(db, "orders"),
-        where("buyerId", "==", user.uid)
-      )
+  if (actionButton) {
+    const action = actionButton.dataset.action;
+    const productId = actionButton.dataset.id;
+
+    const product = products.find(
+      item => item.id === productId
     );
 
-    const docs = snap.docs
-      .map(d => ({ id: d.id, ...d.data() }))
-      .sort(
-        (a, b) =>
-          (b.createdAt?.toMillis?.() || 0) -
-          (a.createdAt?.toMillis?.() || 0)
-      );
-
-    if (!docs.length) {
-      box.innerHTML = `
-        <div class="empty-state">
-          <span>📦</span>
-          <h3>No orders yet</h3>
-          <p>
-            When you submit an order request, it will appear here.
-          </p>
-        </div>
-      `;
-
+    if (action === "new-listing") {
+      openListing();
       return;
     }
 
-    box.innerHTML = docs.map(o => `
-      <article class="order-card">
+    if (action === "details" && product) {
+      showDetails(product);
+      return;
+    }
 
-        <div class="order-top">
-          <div>
-            <h3>
-              Order ${escapeHTML(o.id.slice(0, 9).toUpperCase())}
-            </h3>
+    if (action === "addcart" && product) {
+      addToCart(product);
+      return;
+    }
 
-            <span class="order-id">
-              ${
-                o.createdAt?.toDate
-                  ? escapeHTML(o.createdAt.toDate().toLocaleString())
-                  : "Just submitted"
-              }
-            </span>
-          </div>
+    if (action === "edit" && product) {
+      openListing(productId);
+      return;
+    }
 
-          <span class="status-pill">
-            ${escapeHTML(
-              String(
-                o.orderStatus || "awaiting_seller_confirmation"
-              ).replaceAll("_", " ")
-            )}
-          </span>
-        </div>
+    if (action === "delete" && product) {
+      await deleteListing(productId);
+      return;
+    }
 
-        <div class="order-items">
-          ${
-            (Array.isArray(o.items) ? o.items : [])
-              .map(i =>
-                `${escapeHTML(i.title)} × ${Number(i.quantity) || 1} — ${
-                  naira(
-                    (Number(i.unitPrice) || 0) *
-                    (Number(i.quantity) || 1)
-                  )
-                }`
-              )
-              .join("<br>")
-          }
-
-          <br>
-
-          <strong>
-            Payment: Not integrated — no payment collected.
-          </strong>
-        </div>
-
-        <div class="total-line">
-          <span>Estimated items total</span>
-          <strong class="order-total">${naira(o.total)}</strong>
-        </div>
-
-        <p class="small-muted">
-          Confirm stock, delivery and payment directly with the seller.
-          This order record does not confirm payment or reserve stock.
-        </p>
-
-      </article>
-    `).join("");
-
-  } catch (e) {
-    box.innerHTML = `
-      <div class="empty-state">
-        <h3>Could not load orders</h3>
-        <p>${escapeHTML(errorText(e))}</p>
-        <button class="btn btn-outline" id="retryOrdersButton">
-          Try again
-        </button>
-      </div>
-    `;
-  }
-}
-
-$("refreshOrdersButton").addEventListener("click", loadOrders);
-
-document.addEventListener("click", e => {
-  if (e.target.id === "ordersSignInButton") {
-    openAuth();
+    if (action === "save" && productId) {
+      await toggleSavedProduct(productId);
+      return;
+    }
   }
 
-  if (e.target.id === "retryOrdersButton") {
+  if (target.closest("#emptyStateClearButton")) {
+    clearFilters();
+    return;
+  }
+
+  if (target.closest("#retryOrdersButton")) {
     loadOrders();
+    return;
+  }
+
+  if (target.closest("#ordersSignInButton")) {
+    openAuth("login");
   }
 });
 
-$("menuButton").addEventListener("click", () => {
-  const nav = $("desktopNav");
-  const isOpen = nav.classList.toggle("open");
+$("authForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
 
-  nav.classList.toggle("mobile-open", isOpen);
+  if (activeAuthMode === "register") {
+    await registerAccount();
+  } else {
+    await loginAccount();
+  }
+});
 
-  $("menuButton").setAttribute(
-    "aria-expanded",
-    String(isOpen)
+$("authSwitchButton")?.addEventListener("click", () => {
+  setAuthMode(
+    activeAuthMode === "register"
+      ? "login"
+      : "register"
   );
 });
 
-document.querySelectorAll(".desktop-nav a").forEach(a => {
-  a.addEventListener("click", () => {
-    $("desktopNav").classList.remove("open", "mobile-open");
+$("forgotPasswordButton")?.addEventListener(
+  "click",
+  resetPassword
+);
 
-    $("menuButton").setAttribute(
-      "aria-expanded",
-      "false"
-    );
+$("signOutButton")?.addEventListener(
+  "click",
+  logoutAccount
+);
+
+$("logoutButton")?.addEventListener(
+  "click",
+  logoutAccount
+);
+
+$("saveProfileButton")?.addEventListener(
+  "click",
+  saveProfile
+);
+
+$("profileForm")?.addEventListener(
+  "submit",
+  saveProfile
+);
+
+$("listingForm")?.addEventListener(
+  "submit",
+  saveListing
+);
+
+$("cartButton")?.addEventListener("click", () => {
+  renderCart();
+  openDialog("cartDialog");
+});
+
+$("checkoutButton")?.addEventListener(
+  "click",
+  openCheckout
+);
+
+$("proceedToCheckoutButton")?.addEventListener(
+  "click",
+  openCheckout
+);
+
+$("checkoutForm")?.addEventListener(
+  "submit",
+  submitOrder
+);
+
+$("storefrontForm")?.addEventListener(
+  "submit",
+  saveStorefront
+);
+
+$("searchInput")?.addEventListener(
+  "input",
+  renderMarketplace
+);
+
+$("categoryFilter")?.addEventListener(
+  "change",
+  renderMarketplace
+);
+
+$("locationFilter")?.addEventListener(
+  "change",
+  renderMarketplace
+);
+
+$("sortSelect")?.addEventListener(
+  "change",
+  renderMarketplace
+);
+
+$("clearFiltersButton")?.addEventListener(
+  "click",
+  clearFilters
+);
+
+$("createListingButton")?.addEventListener(
+  "click",
+  () => openListing()
+);
+
+$("addListingButton")?.addEventListener(
+  "click",
+  () => openListing()
+);
+
+$("profileBio")?.addEventListener("input", event => {
+  if ($("profileBioCount")) {
+    $("profileBioCount").textContent =
+      String(event.target.value.length);
+  }
+});
+
+document.querySelectorAll("[data-category]").forEach(button => {
+  button.addEventListener("click", () => {
+    const category = button.dataset.category;
+
+    if ($("categoryFilter")) {
+      $("categoryFilter").value = category || "all";
+    }
+
+    document.querySelectorAll("[data-category]").forEach(item => {
+      item.classList.toggle("active", item === button);
+    });
+
+    renderMarketplace();
   });
 });
 
-document.querySelectorAll(".modal").forEach(d => {
-  d.addEventListener("click", e => {
-    if (e.target === d) d.close();
+document.querySelectorAll("[data-open-auth]").forEach(button => {
+  button.addEventListener("click", () => {
+    openAuth(button.dataset.openAuth || "login");
   });
 });
 
-function startListingsListener() {
-  if (unsubscribeListings) unsubscribeListings();
+onAuthStateChanged(auth, async user => {
+  currentUser = user;
 
-  const q = query(
-    collection(db, "products"),
-    where("status", "==", "active")
-  );
+  updateAuthUI();
 
-  unsubscribeListings = onSnapshot(
-    q,
+  if (!user) {
+    profile = {};
+    storefront = {};
+    savedIds.clear();
 
-    snap => {
-      listings = snap.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      }));
+    renderSavedProducts();
+    renderMyListings();
 
-      applyFilters();
-    },
+    return;
+  }
 
-    err => {
-      $("resultsCount").textContent = "Unable to load listings";
+  try {
+    await ensureUserDocuments(user);
 
-      $("listingGrid").innerHTML = `
-        <div class="empty-state">
-          <h3>Marketplace connection issue</h3>
-          <p>${escapeHTML(errorText(err))}</p>
-        </div>
-      `;
-    }
-  );
-}
+    storefront = profile.storefront || {};
 
-onAuthStateChanged(auth, async current => {
-  user = current;
+    await loadSavedProducts();
 
-  updateAuthInterface();
-  applyFilters();
+    updateAuthUI();
+    fillProfileForm();
 
-  if (user) {
-    try {
-      await saveSellerProfile(user.displayName || "");
-    } catch (e) {
-      console.warn("Seller profile update:", e);
-    }
+    renderMarketplace();
+    renderCart();
+    renderMyListings();
+    renderInventory();
+    renderSavedProducts();
 
     await loadOrders();
-  } else {
-    loadOrders();
+  } catch (errorObject) {
+    console.error("Account initialization failed:", errorObject);
+
+    showToast(
+      "Your account could not finish loading. " +
+      friendlyError(errorObject)
+    );
   }
 });
 
-$("year").textContent = new Date().getFullYear();
+startProductsListener();
 
-setAuthMode("signin");
-renderCartBadge();
 renderCart();
-startListingsListener();
+
+if ($("year")) {
+  $("year").textContent = String(new Date().getFullYear());
+}
