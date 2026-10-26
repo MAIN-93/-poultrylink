@@ -1,833 +1,361 @@
-/* =========================================
-POULTRYLINK — APPLICATION JAVASCRIPT
-Frontend demo version
-========================================= */
-
-“use strict”;
-
-/* 1. APPLICATION DATA */
-
-const products = [
-{
-id: “PL001”,
-title: “Healthy Broiler Chickens”,
-category: “Live Birds”,
-price: 8500,
-unit: “per bird”,
-location: “Ibadan, Oyo State”,
-seller: “Green Acres Poultry”,
-description: “Healthy broiler chickens raised with proper care.”,
-emoji: “🐔”,
-featured: true
-},
-{
-id: “PL002”,
-title: “Fresh Table Eggs”,
-category: “Eggs”,
-price: 6500,
-unit: “per crate”,
-location: “Abeokuta, Ogun State”,
-seller: “Sunrise Egg Farm”,
-description: “Fresh table eggs suitable for homes and retailers.”,
-emoji: “🥚”,
-featured: true
-},
-{
-id: “PL003”,
-title: “Layer Poultry Feed”,
-category: “Feeds”,
-price: 24500,
-unit: “per bag”,
-location: “Lagos, Lagos State”,
-seller: “Farm Supply Hub”,
-description: “Layer feed for poultry farmers and commercial farms.”,
-emoji: “🌾”,
-featured: true
-},
-{
-id: “PL004”,
-title: “Day-Old Broiler Chicks”,
-category: “Day-Old Chicks”,
-price: 1800,
-unit: “per chick”,
-location: “Ilorin, Kwara State”,
-seller: “Prime Chick Suppliers”,
-description: “Day-old broiler chicks for poultry production.”,
-emoji: “🐣”,
-featured: false
-},
-{
-id: “PL005”,
-title: “Automatic Poultry Drinker”,
-category: “Equipment”,
-price: 12000,
-unit: “per set”,
-location: “Abuja, FCT”,
-seller: “Agro Equipment Store”,
-description: “Poultry drinking equipment for farm use.”,
-emoji: “🧰”,
-featured: false
-},
-{
-id: “PL006”,
-title: “Point-of-Lay Pullets”,
-category: “Live Birds”,
-price: 14500,
-unit: “per bird”,
-location: “Enugu, Enugu State”,
-seller: “Healthy Flock Farms”,
-description: “Point-of-lay pullets for egg production.”,
-emoji: “🐓”,
-featured: true
-},
-{
-id: “PL007”,
-title: “Broiler Starter Feed”,
-category: “Feeds”,
-price: 22000,
-unit: “per bag”,
-location: “Benin City, Edo State”,
-seller: “Agro Nutrition Centre”,
-description: “Starter feed for broiler chicks.”,
-emoji: “🌾”,
-featured: false
-},
-{
-id: “PL008”,
-title: “Poultry Farm Consultation”,
-category: “Services”,
-price: 15000,
-unit: “per consultation”,
-location: “Port Harcourt, Rivers State”,
-seller: “Poultry Advisory Services”,
-description: “General poultry farm planning and management advice.”,
-emoji: “🤝”,
-featured: false
-}
-];
-
-/*
-
-* These are demonstration listings, not verified sellers or
-* confirmed real-world offers. Replace them with real database
-* records before launching the marketplace.
-    */
-
-const state = {
-search: “”,
-category: “All”,
-sort: “featured”
-};
-
-/* 2. ELEMENT HELPERS */
-
-function getElement(id) {
-return document.getElementById(id);
-}
-
-function getElements(selector) {
-return document.querySelectorAll(selector);
-}
-
-/* 3. SAFE TEXT AND FORMATTING HELPERS */
-
-function escapeHTML(value) {
-return String(value ?? “”).replace(/[&<>”’]/g, function (character) {
-const entities = {
-“&”: “&”,
-“<”: “<”,
-“>”: “>”,
-‘”’: “"”,
-“’”: “'”
-};
-
-    return entities[character];
-});
-
-}
-
-function formatNaira(amount) {
-return new Intl.NumberFormat(“en-NG”, {
-style: “currency”,
-currency: “NGN”,
-maximumFractionDigits: 0
-}).format(amount);
-}
-
-/* 4. TOAST NOTIFICATIONS */
-
-function showToast(message, type = “success”) {
-const container = getElement(“toastContainer”);
-
-if (!container) {
-    console.log(message);
-    return;
-}
-const toast = document.createElement("div");
-toast.className = `toast ${type}`;
-toast.setAttribute("role", "status");
-toast.textContent = message;
-container.appendChild(toast);
-window.setTimeout(function () {
-    toast.remove();
-}, 3500);
-
-}
-
-/* 5. PRODUCT FILTERING */
-
-function getVisibleProducts() {
-let visibleProducts = […products];
-
-if (state.search.trim()) {
-    const query = state.search.toLowerCase().trim();
-    visibleProducts = visibleProducts.filter(function (product) {
-        const searchableText = [
-            product.title,
-            product.category,
-            product.location,
-            product.seller,
-            product.description
-        ].join(" ").toLowerCase();
-        return searchableText.includes(query);
-    });
-}
-if (state.category !== "All") {
-    visibleProducts = visibleProducts.filter(function (product) {
-        return product.category === state.category;
-    });
-}
-switch (state.sort) {
-    case "price-low":
-        visibleProducts.sort((a, b) => a.price - b.price);
-        break;
-    case "price-high":
-        visibleProducts.sort((a, b) => b.price - a.price);
-        break;
-    case "name":
-        visibleProducts.sort((a, b) =>
-            a.title.localeCompare(b.title)
-        );
-        break;
-    case "featured":
-    default:
-        visibleProducts.sort(function (a, b) {
-            return Number(b.featured) - Number(a.featured);
-        });
-        break;
-}
-return visibleProducts;
-
-}
-
-/* 6. PRODUCT CARD RENDERING */
-
-function renderProducts() {
-const productGrid = getElement(“productGrid”);
-const productCount = getElement(“productCount”);
-
-if (!productGrid) {
-    console.error(
-        "POULTRYLINK: The element #productGrid is missing from index.html."
-    );
-    return;
-}
-const visibleProducts = getVisibleProducts();
-if (productCount) {
-    productCount.textContent =
-        `${visibleProducts.length} demonstration product` +
-        `${visibleProducts.length === 1 ? "" : "s"} found`;
-}
-if (visibleProducts.length === 0) {
-    productGrid.innerHTML = `
-        <div class="empty-state">
-            <h3>No matching products</h3>
-            <p>Try another search term or category.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta
+    name="description"
+    content="POULTRYLINK connects poultry farmers, sellers and buyers across Nigeria."
+>
+<meta name="theme-color" content="#14532d">
+<title>POULTRYLINK | Nigeria's Poultry Marketplace</title>
+<!-- Connect the CSS stylesheet -->
+<link rel="stylesheet" href="styles.css">
+<!-- Load JavaScript as a module -->
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<!-- ANNOUNCEMENT BAR -->
+<div class="announcement-bar">
+    <p>Connecting Nigeria's poultry community.</p>
+</div>
+<!-- HEADER -->
+<header class="site-header">
+    <div class="container header-content">
+        <a href="#home" class="brand" aria-label="POULTRYLINK home">
+            <span class="brand-icon">🐔</span>
+            <span class="brand-name">POULTRY<span>LINK</span></span>
+        </a>
+        <button
+            class="menu-toggle"
+            id="menuToggle"
+            type="button"
+            aria-label="Toggle navigation"
+            aria-expanded="false"
+        >
+            ☰
+        </button>
+        <nav class="main-nav" id="mainNav" aria-label="Main navigation">
+            <a href="#home">Home</a>
+            <a href="#marketplace">Marketplace</a>
+            <a href="#categories">Categories</a>
+            <a href="#how-it-works">How It Works</a>
+        </nav>
+        <div class="header-actions">
+            <button class="button button-outline" id="loginButton" type="button">
+                Log In
+            </button>
+            <button class="button button-primary" id="registerButton" type="button">
+                Join POULTRYLINK
+            </button>
         </div>
-    `;
-    return;
-}
-productGrid.innerHTML = visibleProducts.map(function (product) {
-    return `
-        <article class="product-card">
-            <div class="product-image">
-                <span class="product-image-placeholder"
-                      aria-hidden="true">
-                    ${escapeHTML(product.emoji)}
+    </div>
+</header>
+<main>
+    <!-- HERO SECTION -->
+    <section class="hero" id="home">
+        <div class="container hero-grid">
+            <div class="hero-content">
+                <span class="eyebrow">
+                    NIGERIA'S POULTRY MARKETPLACE
                 </span>
-                ${
-                    product.featured
-                        ? `<span class="product-badge">Featured demo</span>`
-                        : ""
-                }
-            </div>
-            <div class="product-details">
-                <span class="product-category">
-                    ${escapeHTML(product.category)}
-                </span>
-                <h3 class="product-title">
-                    ${escapeHTML(product.title)}
-                </h3>
-                <p class="product-description">
-                    ${escapeHTML(product.description)}
+                <h1>
+                    Your poultry business,
+                    <span>connected.</span>
+                </h1>
+                <p class="hero-description">
+                    Discover poultry products, connect with farmers,
+                    find trusted suppliers and grow your business
+                    with POULTRYLINK.
                 </p>
-                <p class="product-location">
-                    📍 ${escapeHTML(product.location)}
-                </p>
-                <p class="product-price">
-                    ${formatNaira(product.price)}
-                    <small>${escapeHTML(product.unit)}</small>
-                </p>
-                <p class="product-seller">
-                    Seller: ${escapeHTML(product.seller)}
-                </p>
-                <div class="product-actions">
-                    <button
-                        class="button button-primary"
-                        type="button"
-                        data-action="contact-seller"
-                        data-product-id="${escapeHTML(product.id)}"
+                <form class="hero-search" id="searchForm">
+                    <label class="visually-hidden" for="searchInput">
+                        Search poultry products
+                    </label>
+                    <input
+                        type="search"
+                        id="searchInput"
+                        placeholder="Search chickens, eggs, feeds..."
                     >
-                        Contact Seller
+                    <button class="button button-primary" type="submit">
+                        Search
                     </button>
-                    <button
-                        class="button button-outline"
-                        type="button"
-                        data-action="view-product"
-                        data-product-id="${escapeHTML(product.id)}"
-                    >
-                        Details
-                    </button>
+                </form>
+                <div class="hero-highlights">
+                    <span>✓ Explore poultry products</span>
+                    <span>✓ Connect with sellers</span>
+                    <span>✓ Shop across Nigeria</span>
                 </div>
             </div>
-        </article>
-    `;
-}).join("");
-
-}
-
-/* 7. SEARCH */
-
-function initializeSearch() {
-const searchForm = getElement(“searchForm”);
-const searchInput = getElement(“searchInput”);
-
-if (!searchForm || !searchInput) {
-    console.warn("POULTRYLINK: Search elements are missing.");
-    return;
-}
-searchForm.addEventListener("submit", function (event) {
-    event.preventDefault();
-    state.search = searchInput.value;
-    renderProducts();
-    const marketplace = getElement("marketplace");
-    if (marketplace) {
-        marketplace.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-    }
-});
-searchInput.addEventListener("input", function () {
-    state.search = searchInput.value;
-    renderProducts();
-});
-
-}
-
-/* 8. CATEGORY AND SORT FILTERS */
-
-function initializeFilters() {
-const categoryFilter = getElement(“categoryFilter”);
-const sortFilter = getElement(“sortFilter”);
-const clearFiltersButton = getElement(“clearFiltersButton”);
-
-if (categoryFilter) {
-    categoryFilter.addEventListener("change", function () {
-        state.category = categoryFilter.value;
-        updateActiveCategories();
-        renderProducts();
-    });
-}
-if (sortFilter) {
-    sortFilter.addEventListener("change", function () {
-        state.sort = sortFilter.value;
-        renderProducts();
-    });
-}
-if (clearFiltersButton) {
-    clearFiltersButton.addEventListener("click", function () {
-        state.search = "";
-        state.category = "All";
-        state.sort = "featured";
-        const searchInput = getElement("searchInput");
-        if (searchInput) {
-            searchInput.value = "";
-        }
-        if (categoryFilter) {
-            categoryFilter.value = "All";
-        }
-        if (sortFilter) {
-            sortFilter.value = "featured";
-        }
-        updateActiveCategories();
-        renderProducts();
-        showToast("All product filters have been cleared.");
-        const marketplace = getElement("marketplace");
-        if (marketplace) {
-            marketplace.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-        }
-    });
-}
-getElements(".category-card").forEach(function (button) {
-    button.addEventListener("click", function () {
-        state.category = button.dataset.category || "All";
-        if (categoryFilter) {
-            categoryFilter.value = state.category;
-        }
-        updateActiveCategories();
-        renderProducts();
-        const marketplace = getElement("marketplace");
-        if (marketplace) {
-            marketplace.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-        }
-    });
-});
-
-}
-
-function updateActiveCategories() {
-getElements(”.category-card”).forEach(function (button) {
-const isActive = button.dataset.category === state.category;
-
-    button.classList.toggle("active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-});
-
-}
-
-/* 9. MOBILE NAVIGATION */
-
-function initializeMobileNavigation() {
-const menuToggle = getElement(“menuToggle”);
-const mainNav = getElement(“mainNav”);
-
-if (!menuToggle || !mainNav) {
-    console.warn("POULTRYLINK: Navigation elements are missing.");
-    return;
-}
-menuToggle.addEventListener("click", function () {
-    const isOpen = mainNav.classList.toggle("is-open");
-    menuToggle.setAttribute("aria-expanded", String(isOpen));
-    menuToggle.textContent = isOpen ? "✕" : "☰";
-});
-mainNav.querySelectorAll("a").forEach(function (link) {
-    link.addEventListener("click", function () {
-        mainNav.classList.remove("is-open");
-        menuToggle.setAttribute("aria-expanded", "false");
-        menuToggle.textContent = "☰";
-    });
-});
-document.addEventListener("click", function (event) {
-    if (
-        !mainNav.contains(event.target) &&
-        !menuToggle.contains(event.target)
-    ) {
-        mainNav.classList.remove("is-open");
-        menuToggle.setAttribute("aria-expanded", "false");
-        menuToggle.textContent = "☰";
-    }
-});
-
-}
-
-/* 10. MODAL HELPERS */
-
-function openModal(title, content) {
-const backdrop = getElement(“modalBackdrop”);
-const modalContent = getElement(“modalContent”);
-
-if (!backdrop || !modalContent) {
-    showToast("The dialog could not be opened.", "error");
-    return;
-}
-modalContent.innerHTML = `
-    <h2 id="modalTitle">${escapeHTML(title)}</h2>
-    ${content}
-`;
-backdrop.classList.add("is-open");
-backdrop.setAttribute("aria-hidden", "false");
-document.body.classList.add("modal-open");
-const closeButton = getElement("modalClose");
-if (closeButton) {
-    closeButton.focus();
-}
-
-}
-
-function closeModal() {
-const backdrop = getElement(“modalBackdrop”);
-
-if (!backdrop) {
-    return;
-}
-backdrop.classList.remove("is-open");
-backdrop.setAttribute("aria-hidden", "true");
-document.body.classList.remove("modal-open");
-
-}
-
-function initializeModalControls() {
-const backdrop = getElement(“modalBackdrop”);
-const closeButton = getElement(“modalClose”);
-
-if (closeButton) {
-    closeButton.addEventListener("click", closeModal);
-}
-if (backdrop) {
-    backdrop.addEventListener("click", function (event) {
-        if (event.target === backdrop) {
-            closeModal();
-        }
-    });
-}
-document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") {
-        closeModal();
-    }
-});
-
-}
-
-/* 11. PRODUCT DETAILS */
-
-function showProductDetails(productId) {
-const product = products.find(function (item) {
-return item.id === productId;
-});
-
-if (!product) {
-    showToast("This product could not be found.", "error");
-    return;
-}
-openModal(
-    product.title,
-    `
-        <p class="product-category">
-            ${escapeHTML(product.category)}
-        </p>
-        <p>${escapeHTML(product.description)}</p>
-        <p style="margin-top: 12px;">
-            <strong>Price:</strong>
-            ${formatNaira(product.price)}
-            ${escapeHTML(product.unit)}
-        </p>
-        <p style="margin-top: 8px;">
-            <strong>Location:</strong>
-            ${escapeHTML(product.location)}
-        </p>
-        <p style="margin-top: 8px;">
-            <strong>Seller:</strong>
-            ${escapeHTML(product.seller)}
-        </p>
-        <p class="modal-note">
-            This is a demonstration listing. Its availability
-            and seller details have not been independently verified.
-        </p>
-    `
-);
-
-}
-
-/* 12. SELLER CONTACT */
-
-function contactSeller(productId) {
-const product = products.find(function (item) {
-return item.id === productId;
-});
-
-if (!product) {
-    showToast("This product could not be found.", "error");
-    return;
-}
-openModal(
-    "Contact Seller",
-    `
-        <p>
-            You selected <strong>${escapeHTML(product.title)}</strong>.
-        </p>
-        <p style="margin-top: 12px;">
-            Seller: ${escapeHTML(product.seller)}
-        </p>
-        <p style="margin-top: 12px;">
-            Location: ${escapeHTML(product.location)}
-        </p>
-        <p class="modal-note">
-            Seller messaging has not been connected yet.
-            No message has been sent.
-        </p>
-        <button
-            class="button button-primary"
-            id="contactNoticeButton"
-            type="button"
-            style="margin-top: 20px;"
-        >
-            Understood
-        </button>
-    `
-);
-const noticeButton = getElement("contactNoticeButton");
-if (noticeButton) {
-    noticeButton.addEventListener("click", closeModal);
-}
-
-}
-
-/* 13. DEMO LOGIN AND REGISTRATION */
-
-function showLoginModal() {
-openModal(
-“Welcome back”,
-`
-Sign-in functionality will be connected to Firebase
-in the next integration stage.
-        <p class="modal-note">
-            This demo form does not authenticate users or protect
-            an account.
-        </p>
-        <form id="demoLoginForm">
-            <div class="form-group">
-                <label for="loginEmail">Email address</label>
-                <input
-                    id="loginEmail"
-                    name="email"
-                    type="email"
-                    autocomplete="email"
-                    placeholder="you@example.com"
-                    required
-                >
+            <div class="hero-visual">
+                <div class="hero-image-card">
+                    <span class="hero-emoji" aria-hidden="true">🐓</span>
+                    <div class="hero-image-caption">
+                        <span class="caption-label">
+                            WELCOME TO
+                        </span>
+                        <h2>POULTRYLINK</h2>
+                        <p>From farm to marketplace.</p>
+                    </div>
+                </div>
+                <div class="floating-badge">
+                    <span>🌾</span>
+                    <div>
+                        <strong>One community</strong>
+                        <small>Many opportunities</small>
+                    </div>
+                </div>
             </div>
-            <button class="button button-primary" type="submit">
-                Continue
+        </div>
+    </section>
+    <!-- CATEGORIES -->
+    <section class="section categories-section" id="categories">
+        <div class="container">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">EXPLORE THE MARKET</span>
+                    <h2>Browse categories</h2>
+                    <p>Find what your poultry business needs.</p>
+                </div>
+            </div>
+            <div class="category-grid">
+                <button class="category-card" data-category="Live Birds" type="button">
+                    <span class="category-icon">🐔</span>
+                    <span class="category-name">Live Birds</span>
+                    <span class="category-description">Broilers and layers</span>
+                </button>
+                <button class="category-card" data-category="Eggs" type="button">
+                    <span class="category-icon">🥚</span>
+                    <span class="category-name">Eggs</span>
+                    <span class="category-description">Fresh poultry eggs</span>
+                </button>
+                <button class="category-card" data-category="Feeds" type="button">
+                    <span class="category-icon">🌾</span>
+                    <span class="category-name">Poultry Feeds</span>
+                    <span class="category-description">Feed and nutrition</span>
+                </button>
+                <button class="category-card" data-category="Equipment" type="button">
+                    <span class="category-icon">🧰</span>
+                    <span class="category-name">Equipment</span>
+                    <span class="category-description">Farm essentials</span>
+                </button>
+                <button class="category-card" data-category="Day-Old Chicks" type="button">
+                    <span class="category-icon">🐣</span>
+                    <span class="category-name">Day-Old Chicks</span>
+                    <span class="category-description">Start your flock</span>
+                </button>
+                <button class="category-card" data-category="Services" type="button">
+                    <span class="category-icon">🤝</span>
+                    <span class="category-name">Services</span>
+                    <span class="category-description">Poultry professionals</span>
+                </button>
+            </div>
+        </div>
+    </section>
+    <!-- MARKETPLACE -->
+    <section class="section marketplace-section" id="marketplace">
+        <div class="container">
+            <div class="section-heading marketplace-heading">
+                <div>
+                    <span class="eyebrow">THE MARKETPLACE</span>
+                    <h2>Discover poultry products</h2>
+                    <p>Explore products listed by poultry sellers.</p>
+                </div>
+                <button
+                    class="button button-outline"
+                    id="clearFiltersButton"
+                    type="button"
+                >
+                    View All Products
+                </button>
+            </div>
+            <div class="marketplace-toolbar">
+                <label for="categoryFilter" class="filter-label">
+                    Category
+                </label>
+                <select id="categoryFilter">
+                    <option value="All">All Categories</option>
+                    <option value="Live Birds">Live Birds</option>
+                    <option value="Eggs">Eggs</option>
+                    <option value="Feeds">Poultry Feeds</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Day-Old Chicks">Day-Old Chicks</option>
+                    <option value="Services">Services</option>
+                </select>
+                <label for="sortFilter" class="filter-label">
+                    Sort by
+                </label>
+                <select id="sortFilter">
+                    <option value="featured">Featured</option>
+                    <option value="price-low">Price: Low to High</option>
+                    <option value="price-high">Price: High to Low</option>
+                    <option value="name">Product Name</option>
+                </select>
+            </div>
+            <div
+                class="product-grid"
+                id="productGrid"
+                aria-live="polite"
+            >
+                <!-- JavaScript renders product cards here. -->
+                <div class="loading-message">
+                    Loading marketplace...
+                </div>
+            </div>
+            <div class="marketplace-footer">
+                <p id="productCount">Discover poultry products.</p>
+            </div>
+        </div>
+    </section>
+    <!-- SELLER PROMOTION -->
+    <section class="seller-promotion">
+        <div class="container seller-promotion-content">
+            <div>
+                <span class="eyebrow">FOR POULTRY SELLERS</span>
+                <h2>Bring your poultry business online.</h2>
+                <p>
+                    Create your seller profile, showcase your products
+                    and help more customers discover your business.
+                </p>
+            </div>
+            <button
+                class="button button-light"
+                id="becomeSellerButton"
+                type="button"
+            >
+                Start Selling
             </button>
-        </form>
-    `
-);
-const form = getElement("demoLoginForm");
-if (form) {
-    form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        showToast(
-            "Demo only: Firebase sign-in has not been connected.",
-            "error"
-        );
-    });
-}
-
-}
-
-function showRegisterModal() {
-openModal(
-“Join POULTRYLINK”,
-`
-Create an account to prepare for buying or selling
-poultry products.
-        <p class="modal-note">
-            Registration is not active yet. This form does not
-            create an account or store your password.
-        </p>
-        <form id="demoRegisterForm">
-            <div class="form-group">
-                <label for="registerName">Full name</label>
-                <input
-                    id="registerName"
-                    name="name"
-                    type="text"
-                    autocomplete="name"
-                    maxlength="100"
-                    required
-                >
+        </div>
+    </section>
+    <!-- HOW IT WORKS -->
+    <section class="section how-section" id="how-it-works">
+        <div class="container">
+            <div class="section-heading centered-heading">
+                <span class="eyebrow">SIMPLE AND CONVENIENT</span>
+                <h2>How POULTRYLINK works</h2>
+                <p>
+                    Find products and connect with poultry businesses
+                    in a few simple steps.
+                </p>
             </div>
-            <div class="form-group">
-                <label for="registerEmail">Email address</label>
-                <input
-                    id="registerEmail"
-                    name="email"
-                    type="email"
-                    autocomplete="email"
-                    maxlength="254"
-                    required
-                >
+            <div class="steps-grid">
+                <article class="step-card">
+                    <span class="step-number">01</span>
+                    <div class="step-icon">🔎</div>
+                    <h3>Discover</h3>
+                    <p>
+                        Browse categories and explore available
+                        poultry products.
+                    </p>
+                </article>
+                <article class="step-card">
+                    <span class="step-number">02</span>
+                    <div class="step-icon">🤝</div>
+                    <h3>Connect</h3>
+                    <p>
+                        Find sellers and learn more about their
+                        products and businesses.
+                    </p>
+                </article>
+                <article class="step-card">
+                    <span class="step-number">03</span>
+                    <div class="step-icon">📦</div>
+                    <h3>Get Started</h3>
+                    <p>
+                        Contact the seller and agree on order,
+                        delivery and payment arrangements.
+                    </p>
+                </article>
             </div>
-            <button class="button button-primary" type="submit">
-                Continue
-            </button>
-        </form>
-    `
-);
-const form = getElement("demoRegisterForm");
-if (form) {
-    form.addEventListener("submit", function (event) {
-        event.preventDefault();
-        showToast(
-            "Demo only: Firebase registration has not been connected.",
-            "error"
-        );
-    });
-}
-
-}
-
-/* 14. SELLER PROMOTION BUTTONS */
-
-function showSellerInformation() {
-openModal(
-“Start selling on POULTRYLINK”,
-`
-The seller dashboard is not connected yet.
-The production version will allow sellers to manage
-their storefronts and product listings.
-        <p class="modal-note">
-            No seller account has been created.
-        </p>
+        </div>
+    </section>
+    <!-- SAFETY NOTICE -->
+    <section class="safety-section">
+        <div class="container safety-content">
+            <span class="safety-icon">🛡️</span>
+            <div>
+                <h2>Trade with care</h2>
+                <p>
+                    Confirm seller details, product availability,
+                    delivery arrangements and payment terms before
+                    completing a transaction. Never rely on an
+                    unverified payment screenshot as proof of payment.
+                </p>
+            </div>
+        </div>
+    </section>
+</main>
+<!-- FOOTER -->
+<footer class="site-footer">
+    <div class="container">
+        <div class="footer-main">
+            <div class="footer-brand">
+                <a href="#home" class="brand">
+                    <span class="brand-icon">🐔</span>
+                    <span class="brand-name">POULTRY<span>LINK</span></span>
+                </a>
+                <p>
+                    Connecting poultry farmers, suppliers and buyers
+                    across Nigeria.
+                </p>
+            </div>
+            <div class="footer-column">
+                <h3>Marketplace</h3>
+                <a href="#marketplace">Browse Products</a>
+                <a href="#categories">Categories</a>
+                <button id="footerSellerButton" type="button">
+                    Become a Seller
+                </button>
+            </div>
+            <div class="footer-column">
+                <h3>About</h3>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#home">Home</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>
+                &copy; <span id="currentYear"></span> POULTRYLINK.
+                All rights reserved.
+            </p>
+            <p>Built for Nigeria's poultry community.</p>
+        </div>
+    </div>
+</footer>
+<!-- REUSABLE MODAL -->
+<div
+    class="modal-backdrop"
+    id="modalBackdrop"
+    aria-hidden="true"
+>
+    <section
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+    >
         <button
-            class="button button-primary"
-            id="sellerRegisterButton"
+            class="modal-close"
+            id="modalClose"
             type="button"
-            style="margin-top: 20px;"
+            aria-label="Close dialog"
         >
-            Explore Registration
+            &times;
         </button>
-    `
-);
-const button = getElement("sellerRegisterButton");
-if (button) {
-    button.addEventListener("click", showRegisterModal);
-}
-
-}
-
-function initializeAccountButtons() {
-const loginButton = getElement(“loginButton”);
-const registerButton = getElement(“registerButton”);
-const becomeSellerButton = getElement(“becomeSellerButton”);
-const footerSellerButton = getElement(“footerSellerButton”);
-
-if (loginButton) {
-    loginButton.addEventListener("click", showLoginModal);
-}
-if (registerButton) {
-    registerButton.addEventListener("click", showRegisterModal);
-}
-if (becomeSellerButton) {
-    becomeSellerButton.addEventListener("click", showSellerInformation);
-}
-if (footerSellerButton) {
-    footerSellerButton.addEventListener("click", showSellerInformation);
-}
-
-}
-
-/* 15. PRODUCT ACTIONS */
-
-function initializeProductActions() {
-const productGrid = getElement(“productGrid”);
-
-if (!productGrid) {
-    return;
-}
-productGrid.addEventListener("click", function (event) {
-    const button = event.target.closest("[data-action]");
-    if (!button || !productGrid.contains(button)) {
-        return;
-    }
-    const action = button.dataset.action;
-    const productId = button.dataset.productId;
-    if (action === "view-product") {
-        showProductDetails(productId);
-    }
-    if (action === "contact-seller") {
-        contactSeller(productId);
-    }
-});
-
-}
-
-/* 16. FOOTER YEAR */
-
-function initializeFooter() {
-const yearElement = getElement(“currentYear”);
-
-if (yearElement) {
-    yearElement.textContent = String(new Date().getFullYear());
-}
-
-}
-
-/* 17. CHECK REQUIRED HTML ELEMENTS */
-
-function checkRequiredElements() {
-const requiredIds = [
-“menuToggle”,
-“mainNav”,
-“searchForm”,
-“searchInput”,
-“categoryFilter”,
-“sortFilter”,
-“productGrid”,
-“productCount”,
-“modalBackdrop”,
-“modalContent”,
-“modalClose”,
-“toastContainer”
-];
-
-const missingIds = requiredIds.filter(function (id) {
-    return !getElement(id);
-});
-if (missingIds.length > 0) {
-    console.error(
-        "POULTRYLINK: Missing HTML elements:",
-        missingIds.join(", ")
-    );
-    return false;
-}
-console.info("POULTRYLINK: Required HTML elements are present.");
-return true;
-
-}
-
-/* 18. APPLICATION STARTUP */
-
-function initializePoultryLink() {
-console.info(“POULTRYLINK: Starting application.”);
-
-checkRequiredElements();
-initializeSearch();
-initializeFilters();
-initializeMobileNavigation();
-initializeModalControls();
-initializeAccountButtons();
-initializeProductActions();
-initializeFooter();
-updateActiveCategories();
-renderProducts();
-console.info("POULTRYLINK: Frontend demo is ready.");
-
-}
-
-if (document.readyState === “loading”) {
-document.addEventListener(
-“DOMContentLoaded”,
-initializePoultryLink,
-{ once: true }
-);
-} else {
-initializePoultryLink();
-}
+        <div id="modalContent">
+            <h2 id="modalTitle">Welcome to POULTRYLINK</h2>
+            <p id="modalMessage">
+                Connect with Nigeria's poultry community.
+            </p>
+        </div>
+    </section>
+</div>
+<!-- TOAST NOTIFICATIONS -->
+<div
+    class="toast-container"
+    id="toastContainer"
+    aria-live="polite"
+    aria-atomic="true"
+></div>
+</body>
+</html>
