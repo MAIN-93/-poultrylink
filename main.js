@@ -1,212 +1,5434 @@
-// PoultryLink frontend. Configure Firebase below before using live data.
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+/* =========================================================
+   POULTRYLINK — NIGERIA'S POULTRY MARKETPLACE
+   File: app.js
+   Part 1: Application setup and marketplace
+   ========================================================= */
 
 /*
-  IMPORTANT: replace every value below with the configuration from Firebase Console
-  > Project settings > General > Your apps. Do not paste service-account credentials here.
-  This app intentionally does not assume poultrylink-2459a is configured or accessible.
+  DEMO MODE:
+  This version works locally with sample products.
+
+  To connect Firebase, configure your Firebase project in
+  the Firebase section in a later chunk.
+
+  Sample products are demonstration data, not live offers.
 */
-const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_WEB_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_FIREBASE_APP_ID"
+
+const DEMO_MODE = true;
+
+const $ = (selector, root = document) =>
+  root.querySelector(selector);
+
+const $$ = (selector, root = document) =>
+  [...root.querySelectorAll(selector)];
+
+const escapeHTML = (value = "") =>
+  String(value).replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[character]);
+
+const formatNaira = amount =>
+  new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 2
+  }).format(Number(amount) || 0);
+
+const getStoredArray = key => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
 };
-const firebaseConfigured = !Object.values(firebaseConfig).some(v => String(v).startsWith("YOUR_"));
-let app, auth, db;
-if (firebaseConfigured) {
-  try { app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app); }
-  catch (e) { console.error("Firebase initialization failed", e); }
+
+const setStoredArray = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Could not save ${key}:`, error);
+    showToast("Your browser could not save this information.", "error");
+  }
+};
+
+/* ---------------------------------------------------------
+   APPLICATION STATE
+   --------------------------------------------------------- */
+
+const state = {
+  products: [],
+  sellers: [],
+  category: "all",
+  search: "",
+  sort: "featured",
+  savedIds: getStoredArray("poultrylink_saved"),
+  cart: getStoredArray("poultrylink_cart"),
+  currentUser: null,
+  currentProduct: null,
+  dashboardTab: "overview"
+};
+
+/* ---------------------------------------------------------
+   SAMPLE MARKETPLACE PRODUCTS
+   --------------------------------------------------------- */
+
+/*
+  These are sample listings for demonstration only.
+  They are not verified offers from real Nigerian sellers.
+*/
+
+const sampleProducts = [
+  {
+    id: "demo-eggs-001",
+    title: "Fresh Table Eggs",
+    category: "Eggs",
+    description:
+      "Farm-fresh table eggs. Confirm the tray size, quantity, freshness, and collection arrangements with the seller.",
+    price: 6500,
+    unit: "per crate",
+    stock: 80,
+    location: "Ibadan, Oyo State",
+    sellerId: "demo-seller-001",
+    sellerName: "GreenField Poultry",
+    image: "",
+    status: "active",
+    featured: true,
+    createdAt: "2026-10-20T09:00:00.000Z"
+  },
+  {
+    id: "demo-broiler-001",
+    title: "Day-Old Broiler Chicks",
+    category: "Broilers",
+    description:
+      "Sample listing for day-old broiler chicks. Confirm breed, hatch date, vaccination records, and minimum order before purchasing.",
+    price: 1200,
+    unit: "per chick",
+    stock: 300,
+    location: "Abeokuta, Ogun State",
+    sellerId: "demo-seller-002",
+    sellerName: "Sunrise Poultry Farm",
+    image: "",
+    status: "active",
+    featured: true,
+    createdAt: "2026-10-19T09:00:00.000Z"
+  },
+  {
+    id: "demo-feed-001",
+    title: "Broiler Starter Feed",
+    category: "Poultry Feed",
+    description:
+      "Sample poultry feed listing. Confirm the manufacturer, bag weight, expiry date, and feed specifications with the seller.",
+    price: 24000,
+    unit: "per bag",
+    stock: 35,
+    location: "Port Harcourt, Rivers State",
+    sellerId: "demo-seller-003",
+    sellerName: "FarmSupply Hub",
+    image: "",
+    status: "active",
+    featured: true,
+    createdAt: "2026-10-18T09:00:00.000Z"
+  },
+  {
+    id: "demo-layers-001",
+    title: "Point-of-Lay Pullets",
+    category: "Layers",
+    description:
+      "Sample listing for point-of-lay pullets. Ask the seller about age, vaccination, breed, and current laying status.",
+    price: 10500,
+    unit: "per bird",
+    stock: 100,
+    location: "Enugu, Enugu State",
+    sellerId: "demo-seller-004",
+    sellerName: "Golden Nest Farms",
+    image: "",
+    status: "active",
+    featured: true,
+    createdAt: "2026-10-17T09:00:00.000Z"
+  },
+  {
+    id: "demo-equipment-001",
+    title: "Poultry Feeding Trough",
+    category: "Equipment",
+    description:
+      "Sample listing for poultry feeding equipment. Confirm dimensions, material, capacity, and delivery cost before ordering.",
+    price: 8500,
+    unit: "per piece",
+    stock: 25,
+    location: "Lagos, Lagos State",
+    sellerId: "demo-seller-005",
+    sellerName: "AgroChoice Supplies",
+    image: "",
+    status: "active",
+    featured: false,
+    createdAt: "2026-10-16T09:00:00.000Z"
+  },
+  {
+    id: "demo-eggs-002",
+    title: "Premium Brown Eggs",
+    category: "Eggs",
+    description:
+      "Sample listing for brown table eggs. Confirm the quantity per crate, freshness, and collection arrangements.",
+    price: 7500,
+    unit: "per crate",
+    stock: 45,
+    location: "Benin City, Edo State",
+    sellerId: "demo-seller-001",
+    sellerName: "GreenField Poultry",
+    image: "",
+    status: "active",
+    featured: false,
+    createdAt: "2026-10-15T09:00:00.000Z"
+  },
+  {
+    id: "demo-broiler-002",
+    title: "Live Broiler Chickens",
+    category: "Broilers",
+    description:
+      "Sample listing for live broilers. Confirm weight, age, quantity, collection arrangements, and current availability.",
+    price: 9500,
+    unit: "per bird",
+    stock: 60,
+    location: "Kaduna, Kaduna State",
+    sellerId: "demo-seller-002",
+    sellerName: "Sunrise Poultry Farm",
+    image: "",
+    status: "active",
+    featured: false,
+    createdAt: "2026-10-14T09:00:00.000Z"
+  },
+  {
+    id: "demo-feed-002",
+    title: "Layer Mash Feed",
+    category: "Poultry Feed",
+    description:
+      "Sample listing for layer feed. Verify the bag weight, formulation, manufacturer, and expiry date before ordering.",
+    price: 22000,
+    unit: "per bag",
+    stock: 40,
+    location: "Ilorin, Kwara State",
+    sellerId: "demo-seller-003",
+    sellerName: "FarmSupply Hub",
+    image: "",
+    status: "active",
+    featured: false,
+    createdAt: "2026-10-13T09:00:00.000Z"
+  }
+];
+
+/* ---------------------------------------------------------
+   SAMPLE SELLERS
+   --------------------------------------------------------- */
+
+/*
+  Demo sellers are fictional.
+  No sample seller is represented as identity-verified.
+*/
+
+const sampleSellers = [
+  {
+    id: "demo-seller-001",
+    name: "GreenField Poultry",
+    location: "Ibadan, Oyo State",
+    description:
+      "Demonstration storefront for poultry and table egg listings.",
+    verificationStatus: "unverified"
+  },
+  {
+    id: "demo-seller-002",
+    name: "Sunrise Poultry Farm",
+    location: "Abeokuta, Ogun State",
+    description:
+      "Demonstration storefront for broilers and poultry birds.",
+    verificationStatus: "unverified"
+  },
+  {
+    id: "demo-seller-003",
+    name: "FarmSupply Hub",
+    location: "Port Harcourt, Rivers State",
+    description:
+      "Demonstration storefront for feed and farm supplies.",
+    verificationStatus: "unverified"
+  },
+  {
+    id: "demo-seller-004",
+    name: "Golden Nest Farms",
+    location: "Enugu, Enugu State",
+    description:
+      "Demonstration storefront for layers and point-of-lay birds.",
+    verificationStatus: "unverified"
+  },
+  {
+    id: "demo-seller-005",
+    name: "AgroChoice Supplies",
+    location: "Lagos, Lagos State",
+    description:
+      "Demonstration storefront for poultry equipment and accessories.",
+    verificationStatus: "unverified"
+  }
+];
+
+/* ---------------------------------------------------------
+   NOTIFICATIONS
+   --------------------------------------------------------- */
+
+function showToast(message, type = "success") {
+  const region = $("#toastRegion");
+
+  if (!region) {
+    console.log(message);
+    return;
+  }
+
+  const toast = document.createElement("div");
+
+  toast.className = `toast ${type}`;
+  toast.setAttribute("role", "status");
+  toast.textContent = message;
+
+  region.appendChild(toast);
+
+  window.setTimeout(() => {
+    toast.remove();
+  }, 3500);
 }
 
-const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
-const state = { user:null, profile:null, products:[], sellers:[], cart:readCart(), saved:new Set(readSaved()), category:"all", search:"", sort:"featured", dashboardTab:"overview", modalProduct:null, editingProduct:null, demoMode:!db };
-const sampleProducts = [
- {id:"sample-eggs",name:"Fresh Farm Eggs — Tray of 30",category:"Eggs",price:4800,quantity:80,unit:"tray",description:"Fresh table eggs from a local poultry farm. Handle with care and confirm collection or delivery arrangements with the seller.",sellerName:"GreenNest Poultry",sellerId:"sample-seller-1",image:"",status:"active",createdAt:{seconds:1700000000},demo:true},
- {id:"sample-broilers",name:"Healthy Broiler Chickens",category:"Broilers",price:6500,quantity:45,unit:"bird",description:"Healthy broiler birds suitable for small and medium poultry operations. Ask the seller about age, weight and collection dates.",sellerName:"Sunrise Farms",sellerId:"sample-seller-2",image:"",status:"active",createdAt:{seconds:1700000200},demo:true},
- {id:"sample-feed",name:"Broiler Starter Feed — 25kg",category:"Poultry Feed",price:18500,quantity:24,unit:"bag",description:"Starter feed listing for broiler farmers. Confirm feed brand, batch, expiry date and storage conditions before purchase.",sellerName:"AgroPlus Supplies",sellerId:"sample-seller-3",image:"",status:"active",createdAt:{seconds:1700000300},demo:true},
- {id:"sample-layers",name:"Point-of-Lay Pullets",category:"Layers",price:12500,quantity:60,unit:"bird",description:"Point-of-lay pullets offered by an independent seller. Confirm vaccination records, age and availability directly.",sellerName:"GreenNest Poultry",sellerId:"sample-seller-1",image:"",status:"active",createdAt:{seconds:1700000400},demo:true},
- {id:"sample-eggs-2",name:"Crate of Farm Eggs",category:"Eggs",price:3900,quantity:35,unit:"crate",description:"Farm eggs offered in crates. Ask about egg size, handling and pickup options before placing an order.",sellerName:"Hilltop Poultry",sellerId:"sample-seller-4",image:"",status:"active",createdAt:{seconds:1700000500},demo:true},
- {id:"sample-drinker",name:"Automatic Poultry Drinker",category:"Equipment",price:7200,quantity:18,unit:"piece",description:"Poultry watering equipment for everyday farm use. Confirm dimensions and compatibility with your setup.",sellerName:"AgroPlus Supplies",sellerId:"sample-seller-3",image:"",status:"active",createdAt:{seconds:1700000600},demo:true},
- {id:"sample-feed-2",name:"Layer Mash — 25kg",category:"Poultry Feed",price:17200,quantity:31,unit:"bag",description:"Layer feed listing. Verify formulation, manufacturer details and expiry date with the seller.",sellerName:"Sunrise Farms",sellerId:"sample-seller-2",image:"",status:"active",createdAt:{seconds:1700000700},demo:true},
- {id:"sample-broilers-2",name:"Day-Old Broiler Chicks",category:"Broilers",price:1600,quantity:150,unit:"chick",description:"Day-old chick listing. Confirm hatchery source, vaccination, delivery conditions and minimum order quantity.",sellerName:"Hilltop Poultry",sellerId:"sample-seller-4",image:"",status:"active",createdAt:{seconds:1700000800},demo:true}
+/* ---------------------------------------------------------
+   PRODUCT IMAGE AND CATEGORY HELPERS
+   --------------------------------------------------------- */
+
+function categoryEmoji(category) {
+  const emojis = {
+    Eggs: "🥚",
+    Layers: "🐔",
+    Broilers: "🐓",
+    "Poultry Feed": "🌾",
+    Equipment: "🧺",
+    Other: "📦"
+  };
+
+  return emojis[category] || "🐔";
+}
+
+function productImageMarkup(product) {
+  const imageURL = String(product.image || "").trim();
+
+  /*
+    Only render remote image URLs.
+    Do not allow javascript: or data: URLs here.
+  */
+
+  if (/^https?:\/\//i.test(imageURL)) {
+    return `
+      <img
+        class="product-image"
+        src="${escapeHTML(imageURL)}"
+        alt="${escapeHTML(product.title)}"
+        loading="lazy"
+        onerror="
+          this.style.display='none';
+          this.nextElementSibling.style.display='grid';
+        "
+      >
+      <div class="product-placeholder" style="display:none">
+        ${categoryEmoji(product.category)}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="product-placeholder">
+      ${categoryEmoji(product.category)}
+    </div>
+  `;
+}
+
+/* ---------------------------------------------------------
+   MARKETPLACE FILTERING AND SORTING
+   --------------------------------------------------------- */
+
+function getVisibleProducts() {
+  let products = state.products.filter(product =>
+    product.status === "active"
+  );
+
+  if (state.category !== "all") {
+    products = products.filter(product =>
+      String(product.category).toLowerCase() ===
+      state.category.toLowerCase()
+    );
+  }
+
+  const query = state.search.trim().toLowerCase();
+
+  if (query) {
+    products = products.filter(product => {
+      const searchableText = [
+        product.title,
+        product.category,
+        product.description,
+        product.location,
+        product.sellerName
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(query);
+    });
+  }
+
+  switch (state.sort) {
+    case "price-asc":
+      products.sort((a, b) => Number(a.price) - Number(b.price));
+      break;
+
+    case "price-desc":
+      products.sort((a, b) => Number(b.price) - Number(a.price));
+      break;
+
+    case "newest":
+      products.sort((a, b) =>
+        new Date(b.createdAt || 0) -
+        new Date(a.createdAt || 0)
+      );
+      break;
+
+    default:
+      products.sort((a, b) =>
+        Number(Boolean(b.featured)) -
+        Number(Boolean(a.featured))
+      );
+  }
+
+  return products;
+}
+
+/* ---------------------------------------------------------
+   RENDER PRODUCT CARDS
+   --------------------------------------------------------- */
+
+function renderProducts() {
+  const grid = $("#productGrid");
+  const resultCount = $("#resultCount");
+
+  if (!grid) return;
+
+  const products = getVisibleProducts();
+
+  if (resultCount) {
+    resultCount.textContent =
+      `${products.length} product${products.length === 1 ? "" : "s"}`;
+  }
+
+  if (!products.length) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <strong>No products found</strong>
+        <p>Try another search term or select a different category.</p>
+        <button
+          class="button button-outline"
+          type="button"
+          data-action="clear-filters">
+          Clear filters
+        </button>
+      </div>
+    `;
+
+    return;
+  }
+
+  grid.innerHTML = products.map(product => {
+    const isSaved = state.savedIds.includes(product.id);
+
+    const stock = Math.max(0, Number(product.stock) || 0);
+
+    return `
+      <article class="product-card">
+
+        <div class="product-image-wrap">
+
+          ${productImageMarkup(product)}
+
+          <span class="product-badge">
+            ${escapeHTML(product.category)}
+          </span>
+
+          <button
+            class="save-button ${isSaved ? "saved" : ""}"
+            type="button"
+            data-action="toggle-saved"
+            data-id="${escapeHTML(product.id)}"
+            aria-label="${isSaved ? "Remove from" : "Add to"} saved products"
+            aria-pressed="${isSaved}">
+            ${isSaved ? "♥" : "♡"}
+          </button>
+
+        </div>
+
+        <div class="product-info">
+
+          <span class="product-category">
+            ${escapeHTML(product.category)}
+          </span>
+
+          <h3 class="product-title">
+            ${escapeHTML(product.title)}
+          </h3>
+
+          <p class="product-desc">
+            ${escapeHTML(product.description || "")}
+          </p>
+
+          <div class="product-meta">
+
+            <div>
+              <div class="product-price">
+                ${formatNaira(product.price)}
+              </div>
+
+              <div class="product-unit">
+                ${escapeHTML(product.unit || "per item")}
+              </div>
+            </div>
+
+            <div class="product-stock">
+              ${stock > 0 ? `${stock} available` : "Out of stock"}
+            </div>
+
+          </div>
+
+          <div class="seller-mini">
+
+            <span class="seller-mini-avatar">🏡</span>
+
+            <span>
+              ${escapeHTML(product.sellerName || "Marketplace seller")}
+              <br>
+              ${escapeHTML(product.location || "Location not provided")}
+            </span>
+
+          </div>
+
+          <div class="product-actions">
+
+            <button
+              class="button button-outline"
+              type="button"
+              data-action="view-product"
+              data-id="${escapeHTML(product.id)}">
+              Details
+            </button>
+
+            <button
+              class="button button-primary"
+              type="button"
+              data-action="add-to-cart"
+              data-id="${escapeHTML(product.id)}"
+              ${stock <= 0 ? "disabled" : ""}>
+              Add to cart
+            </button>
+
+          </div>
+
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+/* ---------------------------------------------------------
+   SEARCH, CATEGORY FILTERS, AND SORTING
+   --------------------------------------------------------- */
+
+function setCategory(category) {
+  state.category = category || "all";
+
+  $$(".chip").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.category === state.category
+    );
+  });
+
+  const categorySelect = $("#categorySearch");
+
+  if (categorySelect) {
+    categorySelect.value = state.category;
+  }
+
+  renderProducts();
+
+  $("#marketplace")?.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+
+function initializeMarketplaceControls() {
+  $("#searchForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+
+    state.search = $("#searchInput")?.value.trim() || "";
+
+    const categoryValue = $("#categorySearch")?.value || "all";
+
+    state.category = categoryValue;
+
+    $$(".chip").forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.category === state.category
+      );
+    });
+
+    renderProducts();
+
+    $("#marketplace")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  });
+
+  $("#categorySearch")?.addEventListener("change", event => {
+    setCategory(event.target.value);
+  });
+
+  $("#sortSelect")?.addEventListener("change", event => {
+    state.sort = event.target.value;
+    renderProducts();
+  });
+
+  $$(".chip").forEach(button => {
+    button.addEventListener("click", () => {
+      setCategory(button.dataset.category);
+    });
+  });
+
+  $$(".category-card").forEach(button => {
+    button.addEventListener("click", () => {
+      setCategory(button.dataset.category);
+    });
+  });
+
+  $("#showAllBtn")?.addEventListener("click", () => {
+    state.search = "";
+    state.category = "all";
+    state.sort = "featured";
+
+    if ($("#searchInput")) $("#searchInput").value = "";
+    if ($("#categorySearch")) $("#categorySearch").value = "all";
+    if ($("#sortSelect")) $("#sortSelect").value = "featured";
+
+    $$(".chip").forEach(button => {
+      button.classList.toggle(
+        "active",
+        button.dataset.category === "all"
+      );
+    });
+
+    renderProducts();
+
+    showToast("Marketplace refreshed.");
+  });
+
+  $("#filterChips")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-category]");
+
+    if (!button) return;
+
+    setCategory(button.dataset.category);
+  });
+
+  $("#productGrid")?.addEventListener("click", event => {
+    const clearButton = event.target.closest(
+      '[data-action="clear-filters"]'
+    );
+
+    if (!clearButton) return;
+
+    state.search = "";
+    state.category = "all";
+
+    if ($("#searchInput")) $("#searchInput").value = "";
+    if ($("#categorySearch")) $("#categorySearch").value = "all";
+
+    renderProducts();
+  });
+}
+
+/* ---------------------------------------------------------
+   INITIALIZE DEMONSTRATION DATA
+   --------------------------------------------------------- */
+
+function initializeDemoData() {
+  state.products = sampleProducts.map(product => ({ ...product }));
+  state.sellers = sampleSellers.map(seller => ({ ...seller }));
+
+  renderProducts();
+}
+
+/* ---------------------------------------------------------
+   START PART 1
+   --------------------------------------------------------- */
+
+initializeMarketplaceControls();
+initializeDemoData();
+
+
+/* =========================================================
+   POULTRYLINK — APP.JS
+   CHUNK 2 OF 5
+   PRODUCT DETAILS, SAVED PRODUCTS, CART & DEMO CHECKOUT
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   1. MODAL MANAGEMENT
+   --------------------------------------------------------- */
+
+function openModal(title, content, eyebrow = "POULTRYLINK") {
+    const backdrop = document.getElementById("modalBackdrop");
+    const modalTitle = document.getElementById("modalTitle");
+    const modalEyebrow = document.getElementById("modalEyebrow");
+    const modalBody = document.getElementById("modalBody");
+
+    if (!backdrop || !modalTitle || !modalBody) {
+        console.error("POULTRYLINK: Required modal elements are missing.");
+        return;
+    }
+
+    modalTitle.textContent = title;
+    modalBody.innerHTML = content;
+
+    if (modalEyebrow) {
+        modalEyebrow.textContent = eyebrow;
+    }
+
+    backdrop.hidden = false;
+    backdrop.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+
+    const closeButton = document.getElementById("modalClose");
+
+    if (closeButton) {
+        closeButton.focus();
+    }
+}
+
+
+function closeModal() {
+    const backdrop = document.getElementById("modalBackdrop");
+
+    if (!backdrop) return;
+
+    backdrop.hidden = true;
+    backdrop.setAttribute("aria-hidden", "true");
+
+    document.body.classList.remove("modal-open");
+}
+
+
+function initializeModalControls() {
+    const backdrop = document.getElementById("modalBackdrop");
+    const closeButton = document.getElementById("modalClose");
+
+    if (closeButton) {
+        closeButton.addEventListener("click", closeModal);
+    }
+
+    if (backdrop) {
+        backdrop.addEventListener("click", (event) => {
+            if (event.target === backdrop) {
+                closeModal();
+            }
+        });
+    }
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeModal();
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   2. PRODUCT LOOKUP
+   --------------------------------------------------------- */
+
+function getProductById(productId) {
+    if (!productId) return null;
+
+    return state.products.find(
+        (product) => String(product.id) === String(productId)
+    ) || null;
+}
+
+
+function getSellerById(sellerId) {
+    if (!sellerId) return null;
+
+    return state.sellers.find(
+        (seller) => String(seller.id) === String(sellerId)
+    ) || null;
+}
+
+
+function getProductSeller(product) {
+    if (!product) return null;
+
+    return (
+        getSellerById(product.sellerId) ||
+        state.sellers.find(
+            (seller) => seller.name === product.seller
+        ) ||
+        null
+    );
+}
+
+
+function getProductImage(product) {
+    if (!product) return "";
+
+    return product.image || "";
+}
+
+
+function getProductStock(product) {
+    if (!product) return 0;
+
+    const stock = Number(product.stock);
+
+    return Number.isFinite(stock) && stock > 0
+        ? Math.floor(stock)
+        : 0;
+}
+
+
+function isProductAvailable(product) {
+    return Boolean(product) && getProductStock(product) > 0;
+}
+
+
+/* ---------------------------------------------------------
+   3. SAVED PRODUCTS
+   --------------------------------------------------------- */
+
+function getSavedProductIds() {
+    if (!Array.isArray(state.savedIds)) {
+        state.savedIds = [];
+    }
+
+    return state.savedIds.map(String);
+}
+
+
+function isProductSaved(productId) {
+    return getSavedProductIds().includes(String(productId));
+}
+
+
+function persistSavedProducts() {
+    try {
+        localStorage.setItem(
+            "poultrylink_saved",
+            JSON.stringify(getSavedProductIds())
+        );
+    } catch (error) {
+        console.error("Unable to save favourites:", error);
+    }
+}
+
+
+function toggleSavedProduct(productId) {
+    const product = getProductById(productId);
+
+    if (!product) {
+        showToast("This product could not be found.", "error");
+        return;
+    }
+
+    const savedIds = getSavedProductIds();
+    const id = String(product.id);
+    const alreadySaved = savedIds.includes(id);
+
+    if (alreadySaved) {
+        state.savedIds = savedIds.filter(
+            (savedId) => savedId !== id
+        );
+
+        showToast("Product removed from your saved list.");
+    } else {
+        state.savedIds = [...savedIds, id];
+
+        showToast("Product saved successfully.");
+    }
+
+    persistSavedProducts();
+    renderProducts();
+    updateSavedCount();
+
+    const modalBody = document.getElementById("modalBody");
+
+    if (
+        modalBody &&
+        !document.getElementById("modalBackdrop")?.hidden &&
+        modalBody.querySelector("[data-saved-products-list]")
+    ) {
+        openSavedProducts();
+    }
+}
+
+
+function updateSavedCount() {
+    const savedCount = document.getElementById("savedCount");
+
+    if (savedCount) {
+        savedCount.textContent = String(
+            getSavedProductIds().length
+        );
+    }
+
+    const savedButtons = document.querySelectorAll(
+        "[data-open-saved]"
+    );
+
+    savedButtons.forEach((button) => {
+        button.setAttribute(
+            "aria-label",
+            `Open saved products (${getSavedProductIds().length})`
+        );
+    });
+}
+
+
+function createSavedProductCard(product) {
+    const saved = isProductSaved(product.id);
+
+    return `
+        <article class="saved-product-row">
+            <div class="saved-product-image">
+                ${productImageMarkup(product)}
+            </div>
+
+            <div class="saved-product-info">
+                <h4>${escapeHTML(product.name)}</h4>
+
+                <p class="saved-product-price">
+                    ${formatNaira(Number(product.price) || 0)}
+                </p>
+
+                <p class="muted-text">
+                    ${escapeHTML(product.location || "Nigeria")}
+                </p>
+
+                <div class="saved-product-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary btn-small"
+                        data-action="view-product"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                    >
+                        View product
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-outline btn-small"
+                        data-action="remove-saved"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                        aria-pressed="${saved ? "true" : "false"}"
+                    >
+                        Remove
+                    </button>
+                </div>
+            </div>
+        </article>
+    `;
+}
+
+
+function openSavedProducts() {
+    const savedIds = getSavedProductIds();
+
+    const products = savedIds
+        .map((id) => getProductById(id))
+        .filter(Boolean);
+
+    if (products.length === 0) {
+        openModal(
+            "Saved products",
+            `
+                <div class="empty-state">
+                    <div class="empty-state-icon" aria-hidden="true">
+                        ♡
+                    </div>
+
+                    <h3>No saved products yet</h3>
+
+                    <p>
+                        Save poultry products you want to revisit.
+                        They will appear here on this browser.
+                    </p>
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-action="close-and-browse"
+                    >
+                        Browse products
+                    </button>
+                </div>
+            `,
+            "YOUR FAVOURITES"
+        );
+
+        return;
+    }
+
+    openModal(
+        "Saved products",
+        `
+            <div data-saved-products-list>
+                <p class="muted-text">
+                    ${products.length}
+                    saved product${products.length === 1 ? "" : "s"}
+                </p>
+
+                <div class="saved-products-list">
+                    ${products.map(createSavedProductCard).join("")}
+                </div>
+            </div>
+        `,
+        "YOUR FAVOURITES"
+    );
+}
+
+
+/* ---------------------------------------------------------
+   4. PRODUCT DETAILS MODAL
+   --------------------------------------------------------- */
+
+function renderProductDetails(product) {
+    const seller = getProductSeller(product);
+    const stock = getProductStock(product);
+    const available = isProductAvailable(product);
+    const saved = isProductSaved(product.id);
+
+    const sellerName = seller?.name || product.seller || "Poultry seller";
+    const sellerLocation =
+        seller?.location || product.location || "Nigeria";
+
+    const image = getProductImage(product);
+
+    return `
+        <div class="product-details">
+            <div class="product-details-image">
+                ${
+                    image
+                        ? `
+                            <img
+                                src="${escapeHTML(image)}"
+                                alt="${escapeHTML(product.name)}"
+                                loading="lazy"
+                            >
+                        `
+                        : `
+                            <div class="product-image-placeholder">
+                                ${categoryEmoji(product.category)}
+                            </div>
+                        `
+                }
+            </div>
+
+            <div class="product-details-content">
+                <span class="product-category-label">
+                    ${escapeHTML(product.category || "Poultry")}
+                </span>
+
+                <h3>${escapeHTML(product.name)}</h3>
+
+                <p class="product-details-price">
+                    ${formatNaira(Number(product.price) || 0)}
+                    <span>
+                        ${escapeHTML(product.unit || "per unit")}
+                    </span>
+                </p>
+
+                <p class="product-details-description">
+                    ${escapeHTML(
+                        product.description ||
+                        "Contact the seller for more information about this product."
+                    )}
+                </p>
+
+                <div class="product-details-meta">
+                    <div>
+                        <span class="meta-label">Seller</span>
+                        <strong>${escapeHTML(sellerName)}</strong>
+                    </div>
+
+                    <div>
+                        <span class="meta-label">Location</span>
+                        <strong>${escapeHTML(sellerLocation)}</strong>
+                    </div>
+
+                    <div>
+                        <span class="meta-label">Availability</span>
+                        <strong>
+                            ${
+                                available
+                                    ? `${stock} available`
+                                    : "Currently unavailable"
+                            }
+                        </strong>
+                    </div>
+                </div>
+
+                <div class="product-details-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-action="add-to-cart"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                        ${available ? "" : "disabled"}
+                    >
+                        ${available ? "Add to cart" : "Out of stock"}
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-outline"
+                        data-action="toggle-saved"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                        aria-pressed="${saved ? "true" : "false"}"
+                    >
+                        ${saved ? "♥ Saved" : "♡ Save product"}
+                    </button>
+                </div>
+
+                <p class="safety-note">
+                    Confirm product availability, delivery arrangements,
+                    and seller details before making payment.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+
+function openProductDetails(productId) {
+    const product = getProductById(productId);
+
+    if (!product) {
+        showToast("Product not found.", "error");
+        return;
+    }
+
+    state.currentProduct = product.id;
+
+    openModal(
+        "Product details",
+        renderProductDetails(product),
+        "MARKETPLACE"
+    );
+}
+
+
+/* ---------------------------------------------------------
+   5. CART STORAGE AND QUANTITY MANAGEMENT
+   --------------------------------------------------------- */
+
+function getCartItems() {
+    if (!Array.isArray(state.cart)) {
+        state.cart = [];
+    }
+
+    return state.cart;
+}
+
+
+function persistCart() {
+    try {
+        localStorage.setItem(
+            "poultrylink_cart",
+            JSON.stringify(getCartItems())
+        );
+    } catch (error) {
+        console.error("Unable to save cart:", error);
+    }
+}
+
+
+function getCartQuantity(productId) {
+    const item = getCartItems().find(
+        (cartItem) =>
+            String(cartItem.productId) === String(productId)
+    );
+
+    return item ? Number(item.quantity) || 0 : 0;
+}
+
+
+function getCartCount() {
+    return getCartItems().reduce(
+        (total, item) => total + Math.max(0, Number(item.quantity) || 0),
+        0
+    );
+}
+
+
+function updateCartCount() {
+    const cartCount = document.getElementById("cartCount");
+
+    if (cartCount) {
+        cartCount.textContent = String(getCartCount());
+    }
+
+    document.querySelectorAll("[data-cart-count]").forEach((element) => {
+        element.textContent = String(getCartCount());
+    });
+}
+
+
+function addToCart(productId, quantity = 1) {
+    const product = getProductById(productId);
+    const amount = Math.floor(Number(quantity));
+
+    if (!product) {
+        showToast("This product could not be found.", "error");
+        return false;
+    }
+
+    if (!Number.isFinite(amount) || amount < 1) {
+        showToast("Enter a valid quantity.", "error");
+        return false;
+    }
+
+    if (!isProductAvailable(product)) {
+        showToast("This product is currently unavailable.", "error");
+        return false;
+    }
+
+    const existingQuantity = getCartQuantity(product.id);
+    const requestedQuantity = existingQuantity + amount;
+    const stock = getProductStock(product);
+
+    if (requestedQuantity > stock) {
+        showToast(
+            `Only ${stock} unit(s) are currently available.`,
+            "error"
+        );
+
+        return false;
+    }
+
+    const cart = getCartItems();
+    const existingItem = cart.find(
+        (item) => String(item.productId) === String(product.id)
+    );
+
+    if (existingItem) {
+        existingItem.quantity = requestedQuantity;
+    } else {
+        cart.push({
+            productId: product.id,
+            quantity: amount
+        });
+    }
+
+    state.cart = cart;
+
+    persistCart();
+    updateCartCount();
+
+    showToast(`${product.name} added to your cart.`);
+
+    return true;
+}
+
+
+function updateCartItemQuantity(productId, quantity) {
+    const product = getProductById(productId);
+    const requestedQuantity = Math.floor(Number(quantity));
+
+    if (!product) {
+        removeCartItem(productId);
+        return;
+    }
+
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity < 1) {
+        removeCartItem(productId);
+        return;
+    }
+
+    const stock = getProductStock(product);
+
+    if (requestedQuantity > stock) {
+        showToast(
+            `Only ${stock} unit(s) are available.`,
+            "error"
+        );
+
+        return;
+    }
+
+    const cartItem = getCartItems().find(
+        (item) => String(item.productId) === String(productId)
+    );
+
+    if (!cartItem) return;
+
+    cartItem.quantity = requestedQuantity;
+
+    persistCart();
+    updateCartCount();
+    openCart();
+}
+
+
+function removeCartItem(productId) {
+    state.cart = getCartItems().filter(
+        (item) => String(item.productId) !== String(productId)
+    );
+
+    persistCart();
+    updateCartCount();
+
+    const backdrop = document.getElementById("modalBackdrop");
+
+    if (backdrop && !backdrop.hidden) {
+        openCart();
+    }
+
+    showToast("Item removed from cart.");
+}
+
+
+function clearCart() {
+    state.cart = [];
+
+    persistCart();
+    updateCartCount();
+}
+
+
+/* ---------------------------------------------------------
+   6. CART TOTALS
+   --------------------------------------------------------- */
+
+function getCartDetails() {
+    return getCartItems()
+        .map((item) => {
+            const product = getProductById(item.productId);
+
+            if (!product) return null;
+
+            const quantity = Math.max(
+                1,
+                Math.floor(Number(item.quantity) || 1)
+            );
+
+            const price = Math.max(
+                0,
+                Number(product.price) || 0
+            );
+
+            return {
+                product,
+                productId: product.id,
+                quantity,
+                price,
+                subtotal: price * quantity
+            };
+        })
+        .filter(Boolean);
+}
+
+
+function getCartSubtotal() {
+    return getCartDetails().reduce(
+        (total, item) => total + item.subtotal,
+        0
+    );
+}
+
+
+/* ---------------------------------------------------------
+   7. CART MODAL
+   --------------------------------------------------------- */
+
+function renderCartItem(item) {
+    const product = item.product;
+
+    return `
+        <article class="cart-item">
+            <div class="cart-item-image">
+                ${productImageMarkup(product)}
+            </div>
+
+            <div class="cart-item-info">
+                <h4>${escapeHTML(product.name)}</h4>
+
+                <p>
+                    ${formatNaira(item.price)}
+                    × ${item.quantity}
+                </p>
+
+                <strong>
+                    ${formatNaira(item.subtotal)}
+                </strong>
+
+                <div class="cart-item-controls">
+                    <button
+                        type="button"
+                        class="quantity-button"
+                        data-action="cart-decrease"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                        aria-label="Decrease quantity"
+                    >
+                        −
+                    </button>
+
+                    <span class="quantity-value">
+                        ${item.quantity}
+                    </span>
+
+                    <button
+                        type="button"
+                        class="quantity-button"
+                        data-action="cart-increase"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                        aria-label="Increase quantity"
+                    >
+                        +
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn-text-danger"
+                        data-action="remove-cart-item"
+                        data-product-id="${escapeHTML(String(product.id))}"
+                    >
+                        Remove
+                    </button>
+                </div>
+            </div>
+        </article>
+    `;
+}
+
+
+function openCart() {
+    const items = getCartDetails();
+
+    if (items.length === 0) {
+        openModal(
+            "Your shopping cart",
+            `
+                <div class="empty-state">
+                    <div class="empty-state-icon" aria-hidden="true">
+                        🛒
+                    </div>
+
+                    <h3>Your cart is empty</h3>
+
+                    <p>
+                        Browse the marketplace and add poultry products
+                        you would like to order.
+                    </p>
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-action="close-and-browse"
+                    >
+                        Browse marketplace
+                    </button>
+                </div>
+            `,
+            "YOUR CART"
+        );
+
+        return;
+    }
+
+    const subtotal = getCartSubtotal();
+
+    openModal(
+        "Your shopping cart",
+        `
+            <div class="cart-items-list">
+                ${items.map(renderCartItem).join("")}
+            </div>
+
+            <div class="cart-summary">
+                <div class="cart-summary-row">
+                    <span>Items</span>
+                    <strong>${getCartCount()}</strong>
+                </div>
+
+                <div class="cart-summary-row">
+                    <span>Subtotal</span>
+                    <strong>${formatNaira(subtotal)}</strong>
+                </div>
+
+                <p class="muted-text">
+                    Delivery charges, if applicable, are not included.
+                    Confirm the final amount with the seller.
+                </p>
+
+                <div class="cart-summary-actions">
+                    <button
+                        type="button"
+                        class="btn btn-outline"
+                        data-action="clear-cart"
+                    >
+                        Clear cart
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-action="start-checkout"
+                    >
+                        Continue to checkout
+                    </button>
+                </div>
+            </div>
+        `,
+        "YOUR CART"
+    );
+}
+
+
+/* ---------------------------------------------------------
+   8. DEMO CHECKOUT FORM
+   --------------------------------------------------------- */
+
+function openCheckout() {
+    const items = getCartDetails();
+
+    if (items.length === 0) {
+        showToast("Your cart is empty.", "error");
+        openCart();
+        return;
+    }
+
+    const subtotal = getCartSubtotal();
+
+    openModal(
+        "Checkout",
+        `
+            <div class="checkout-summary">
+                <h3>Order summary</h3>
+
+                ${items.map((item) => `
+                    <div class="checkout-summary-row">
+                        <span>
+                            ${escapeHTML(item.product.name)}
+                            × ${item.quantity}
+                        </span>
+
+                        <strong>
+                            ${formatNaira(item.subtotal)}
+                        </strong>
+                    </div>
+                `).join("")}
+
+                <div class="checkout-total">
+                    <span>Subtotal</span>
+                    <strong>${formatNaira(subtotal)}</strong>
+                </div>
+            </div>
+
+            <form id="checkoutForm" class="form-stack">
+                <div class="form-group">
+                    <label for="checkoutName">
+                        Full name
+                    </label>
+
+                    <input
+                        id="checkoutName"
+                        name="customerName"
+                        type="text"
+                        autocomplete="name"
+                        maxlength="100"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="checkoutPhone">
+                        Phone number
+                    </label>
+
+                    <input
+                        id="checkoutPhone"
+                        name="phone"
+                        type="tel"
+                        autocomplete="tel"
+                        maxlength="25"
+                        placeholder="e.g. 08012345678"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="checkoutEmail">
+                        Email address (optional)
+                    </label>
+
+                    <input
+                        id="checkoutEmail"
+                        name="email"
+                        type="email"
+                        autocomplete="email"
+                        maxlength="150"
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="checkoutAddress">
+                        Delivery address
+                    </label>
+
+                    <textarea
+                        id="checkoutAddress"
+                        name="deliveryAddress"
+                        rows="3"
+                        maxlength="500"
+                        autocomplete="street-address"
+                        required
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="checkoutNotes">
+                        Additional instructions (optional)
+                    </label>
+
+                    <textarea
+                        id="checkoutNotes"
+                        name="notes"
+                        rows="2"
+                        maxlength="500"
+                        placeholder="Preferred delivery time or other details"
+                    ></textarea>
+                </div>
+
+                <div class="notice notice-warning">
+                    <strong>Demo checkout:</strong>
+                    This form records a demonstration order in this
+                    browser only. It does not send your details to a
+                    seller, charge a payment method, or arrange delivery.
+                    Do not enter sensitive financial information.
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-full"
+                >
+                    Save demo order
+                </button>
+            </form>
+        `,
+        "ORDER DETAILS"
+    );
+}
+
+
+function saveDemoOrder(formData) {
+    const items = getCartDetails();
+
+    if (items.length === 0) {
+        showToast("Your cart is empty.", "error");
+        return;
+    }
+
+    const customerName = String(
+        formData.get("customerName") || ""
+    ).trim();
+
+    const phone = String(
+        formData.get("phone") || ""
+    ).trim();
+
+    const email = String(
+        formData.get("email") || ""
+    ).trim();
+
+    const deliveryAddress = String(
+        formData.get("deliveryAddress") || ""
+    ).trim();
+
+    const notes = String(
+        formData.get("notes") || ""
+    ).trim();
+
+    if (
+        !customerName ||
+        !phone ||
+        !deliveryAddress
+    ) {
+        showToast(
+            "Please complete all required fields.",
+            "error"
+        );
+
+        return;
+    }
+
+    const order = {
+        id: `DEMO-${Date.now()}`,
+        customerName,
+        phone,
+        email,
+        deliveryAddress,
+        notes,
+        items: items.map((item) => ({
+            productId: item.productId,
+            productName: item.product.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            subtotal: item.subtotal,
+            sellerId: item.product.sellerId || null
+        })),
+        subtotal: getCartSubtotal(),
+        status: "Demo order — not submitted",
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        const existingOrders = JSON.parse(
+            localStorage.getItem("poultrylink_demo_orders") || "[]"
+        );
+
+        if (!Array.isArray(existingOrders)) {
+            throw new Error("Invalid demo order storage.");
+        }
+
+        existingOrders.push(order);
+
+        localStorage.setItem(
+            "poultrylink_demo_orders",
+            JSON.stringify(existingOrders)
+        );
+
+        clearCart();
+
+        openModal(
+            "Demo order saved",
+            `
+                <div class="success-state">
+                    <div class="success-state-icon" aria-hidden="true">
+                        ✓
+                    </div>
+
+                    <h3>Your demo order has been saved</h3>
+
+                    <p>
+                        Reference:
+                        <strong>${escapeHTML(order.id)}</strong>
+                    </p>
+
+                    <p>
+                        Total:
+                        <strong>${formatNaira(order.subtotal)}</strong>
+                    </p>
+
+                    <p>
+                        This order exists only in this browser.
+                        No seller has received it and no payment has
+                        been processed.
+                    </p>
+
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-action="close-and-browse"
+                    >
+                        Return to marketplace
+                    </button>
+                </div>
+            `,
+            "DEMO CHECKOUT"
+        );
+
+        showToast("Demo order saved locally.");
+
+    } catch (error) {
+        console.error("Unable to save demo order:", error);
+
+        showToast(
+            "Unable to save the demo order in this browser.",
+            "error"
+        );
+    }
+}
+
+
+/* ---------------------------------------------------------
+   9. PRODUCT AND CART CLICK HANDLERS
+   --------------------------------------------------------- */
+
+function initializeProductActionHandlers() {
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+
+        if (!button) return;
+
+        const action = button.dataset.action;
+        const productId = button.dataset.productId;
+
+        switch (action) {
+            case "view-product":
+                if (productId) {
+                    openProductDetails(productId);
+                }
+                break;
+
+            case "toggle-saved":
+                if (productId) {
+                    toggleSavedProduct(productId);
+
+                    const product = getProductById(productId);
+
+                    if (product) {
+                        openProductDetails(product.id);
+                    }
+                }
+                break;
+
+            case "remove-saved":
+                if (productId) {
+                    state.savedIds = getSavedProductIds().filter(
+                        (id) => id !== String(productId)
+                    );
+
+                    persistSavedProducts();
+                    renderProducts();
+                    updateSavedCount();
+                    openSavedProducts();
+
+                    showToast("Product removed from saved products.");
+                }
+                break;
+
+            case "add-to-cart":
+                if (productId) {
+                    const added = addToCart(productId, 1);
+
+                    if (added) {
+                        openProductDetails(productId);
+                    }
+                }
+                break;
+
+            case "open-cart":
+                openCart();
+                break;
+
+            case "open-saved":
+                openSavedProducts();
+                break;
+
+            case "cart-increase": {
+                if (!productId) break;
+
+                const currentQuantity = getCartQuantity(productId);
+
+                updateCartItemQuantity(
+                    productId,
+                    currentQuantity + 1
+                );
+
+                break;
+            }
+
+            case "cart-decrease": {
+                if (!productId) break;
+
+                const currentQuantity = getCartQuantity(productId);
+
+                updateCartItemQuantity(
+                    productId,
+                    currentQuantity - 1
+                );
+
+                break;
+            }
+
+            case "remove-cart-item":
+                if (productId) {
+                    removeCartItem(productId);
+                }
+                break;
+
+            case "clear-cart":
+                clearCart();
+                openCart();
+                showToast("Your cart has been cleared.");
+                break;
+
+            case "start-checkout":
+                openCheckout();
+                break;
+
+            case "close-and-browse":
+                closeModal();
+
+                document.getElementById("marketplace")?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+
+                break;
+
+            default:
+                break;
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   10. CHECKOUT FORM SUBMISSION
+   --------------------------------------------------------- */
+
+function initializeCheckoutHandler() {
+    document.addEventListener("submit", (event) => {
+        if (event.target.id !== "checkoutForm") {
+            return;
+        }
+
+        event.preventDefault();
+
+        const form = event.target;
+
+        if (!form.reportValidity()) {
+            return;
+        }
+
+        const formData = new FormData(form);
+
+        saveDemoOrder(formData);
+    });
+}
+
+
+/* ---------------------------------------------------------
+   11. LOAD SAVED CART AND FAVOURITES
+   --------------------------------------------------------- */
+
+function initializeShoppingStorage() {
+    try {
+        const savedProducts = JSON.parse(
+            localStorage.getItem("poultrylink_saved") || "[]"
+        );
+
+        state.savedIds = Array.isArray(savedProducts)
+            ? savedProducts.map(String)
+            : [];
+    } catch (error) {
+        state.savedIds = [];
+
+        console.error(
+            "Unable to load saved products:",
+            error
+        );
+    }
+
+    try {
+        const savedCart = JSON.parse(
+            localStorage.getItem("poultrylink_cart") || "[]"
+        );
+
+        if (Array.isArray(savedCart)) {
+            state.cart = savedCart
+                .filter((item) => {
+                    const product = getProductById(item.productId);
+                    const quantity = Number(item.quantity);
+
+                    return (
+                        product &&
+                        Number.isFinite(quantity) &&
+                        quantity >= 1 &&
+                        isProductAvailable(product)
+                    );
+                })
+                .map((item) => {
+                    const product = getProductById(item.productId);
+
+                    return {
+                        productId: product.id,
+                        quantity: Math.min(
+                            Math.floor(Number(item.quantity)),
+                            getProductStock(product)
+                        )
+                    };
+                })
+                .filter((item) => item.quantity >= 1);
+        } else {
+            state.cart = [];
+        }
+    } catch (error) {
+        state.cart = [];
+
+        console.error(
+            "Unable to load shopping cart:",
+            error
+        );
+    }
+
+    persistSavedProducts();
+    persistCart();
+
+    updateSavedCount();
+    updateCartCount();
+}
+
+
+/* ---------------------------------------------------------
+   12. START CHUNK 2 FEATURES
+   --------------------------------------------------------- */
+
+initializeModalControls();
+initializeShoppingStorage();
+initializeProductActionHandlers();
+initializeCheckoutHandler();
+
+/* END OF CHUNK 2 */
+
+/* =========================================================
+   POULTRYLINK — APP.JS
+   CHUNK 3 OF 5
+   DEMO ACCOUNTS, USER PROFILES & DASHBOARD NAVIGATION
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   1. ACCOUNT STORAGE
+   --------------------------------------------------------- */
+
+function getDemoUsers() {
+    try {
+        const users = JSON.parse(
+            localStorage.getItem("poultrylink_demo_users") || "[]"
+        );
+
+        return Array.isArray(users) ? users : [];
+    } catch (error) {
+        console.error("Unable to read demo users:", error);
+        return [];
+    }
+}
+
+
+function saveDemoUsers(users) {
+    try {
+        localStorage.setItem(
+            "poultrylink_demo_users",
+            JSON.stringify(users)
+        );
+
+        return true;
+    } catch (error) {
+        console.error("Unable to save demo users:", error);
+        return false;
+    }
+}
+
+
+function getCurrentUser() {
+    return state.currentUser || null;
+}
+
+
+function normalizeEmail(email) {
+    return String(email || "").trim().toLowerCase();
+}
+
+
+function getUserById(userId) {
+    if (!userId) return null;
+
+    return getDemoUsers().find(
+        (user) => String(user.id) === String(userId)
+    ) || null;
+}
+
+
+function updateCurrentUser(user) {
+    state.currentUser = user || null;
+
+    try {
+        if (user) {
+            localStorage.setItem(
+                "poultrylink_demo_session",
+                JSON.stringify({
+                    userId: user.id
+                })
+            );
+        } else {
+            localStorage.removeItem("poultrylink_demo_session");
+        }
+    } catch (error) {
+        console.error("Unable to update demo session:", error);
+    }
+
+    updateAccountInterface();
+}
+
+
+/* ---------------------------------------------------------
+   2. DEMO REGISTRATION
+   --------------------------------------------------------- */
+
+function openRegistrationModal() {
+    openModal(
+        "Create your account",
+        `
+            <form id="registrationForm" class="form-stack">
+                <div class="notice notice-warning">
+                    <strong>Demo mode:</strong>
+                    Do not reuse a real password. This demonstration
+                    stores account information in your browser and
+                    does not provide secure authentication.
+                </div>
+
+                <div class="form-group">
+                    <label for="registerName">Full name</label>
+
+                    <input
+                        id="registerName"
+                        name="name"
+                        type="text"
+                        maxlength="100"
+                        autocomplete="name"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="registerEmail">Email address</label>
+
+                    <input
+                        id="registerEmail"
+                        name="email"
+                        type="email"
+                        maxlength="150"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPhone">Phone number</label>
+
+                    <input
+                        id="registerPhone"
+                        name="phone"
+                        type="tel"
+                        maxlength="25"
+                        autocomplete="tel"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="registerRole">Account type</label>
+
+                    <select id="registerRole" name="role" required>
+                        <option value="buyer">Buyer</option>
+                        <option value="seller">Seller</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="registerLocation">Location</label>
+
+                    <input
+                        id="registerLocation"
+                        name="location"
+                        type="text"
+                        maxlength="120"
+                        placeholder="e.g. Port Harcourt, Rivers State"
+                        autocomplete="address-level2"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPassword">Demo password</label>
+
+                    <input
+                        id="registerPassword"
+                        name="password"
+                        type="password"
+                        minlength="8"
+                        maxlength="128"
+                        autocomplete="new-password"
+                        required
+                    >
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-full"
+                >
+                    Create demo account
+                </button>
+
+                <p class="form-helper">
+                    Already registered?
+                    <button
+                        type="button"
+                        class="btn-link"
+                        data-action="open-login"
+                    >
+                        Log in
+                    </button>
+                </p>
+            </form>
+        `,
+        "JOIN POULTRYLINK"
+    );
+}
+
+
+function registerDemoUser(formData) {
+    const name = String(formData.get("name") || "").trim();
+    const email = normalizeEmail(formData.get("email"));
+    const phone = String(formData.get("phone") || "").trim();
+    const role = String(formData.get("role") || "buyer");
+    const location = String(formData.get("location") || "").trim();
+    const password = String(formData.get("password") || "");
+
+    if (!name || !email || !phone || !location) {
+        showToast("Please complete all required fields.", "error");
+        return;
+    }
+
+    if (!["buyer", "seller"].includes(role)) {
+        showToast("Please select a valid account type.", "error");
+        return;
+    }
+
+    if (password.length < 8) {
+        showToast("The demo password must have at least 8 characters.", "error");
+        return;
+    }
+
+    const users = getDemoUsers();
+
+    if (users.some((user) => normalizeEmail(user.email) === email)) {
+        showToast("An account with this email already exists.", "error");
+        return;
+    }
+
+    /*
+     * DEMO ONLY:
+     * This intentionally does not save the password.
+     * Registration creates a local demonstration profile.
+     * Production authentication must be handled by a trusted
+     * authentication provider.
+     */
+
+    const user = {
+        id: `demo-user-${Date.now()}`,
+        name,
+        email,
+        phone,
+        role,
+        location,
+        bio: "",
+        businessName: role === "seller" ? "" : null,
+        businessDescription: role === "seller" ? "" : null,
+        createdAt: new Date().toISOString(),
+        accountType: "demo",
+        verificationStatus: "not_verified"
+    };
+
+    users.push(user);
+
+    if (!saveDemoUsers(users)) {
+        showToast("Unable to create the demo account.", "error");
+        return;
+    }
+
+    updateCurrentUser(user);
+
+    closeModal();
+
+    showToast("Demo account created successfully.");
+
+    openDashboard("overview");
+}
+
+
+/* ---------------------------------------------------------
+   3. DEMO LOGIN
+   --------------------------------------------------------- */
+
+function openLoginModal() {
+    openModal(
+        "Log in to POULTRYLINK",
+        `
+            <form id="loginForm" class="form-stack">
+                <div class="notice notice-warning">
+                    This is a browser-based demonstration.
+                    It does not authenticate users securely.
+                </div>
+
+                <div class="form-group">
+                    <label for="loginEmail">Email address</label>
+
+                    <input
+                        id="loginEmail"
+                        name="email"
+                        type="email"
+                        maxlength="150"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+
+                <p class="form-helper">
+                    Enter the email address used to create your
+                    demo account. No password is checked in this
+                    demonstration.
+                </p>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-full"
+                >
+                    Continue to demo account
+                </button>
+
+                <p class="form-helper">
+                    New to POULTRYLINK?
+
+                    <button
+                        type="button"
+                        class="btn-link"
+                        data-action="open-register"
+                    >
+                        Create an account
+                    </button>
+                </p>
+            </form>
+        `,
+        "WELCOME BACK"
+    );
+}
+
+
+function loginDemoUser(formData) {
+    const email = normalizeEmail(formData.get("email"));
+
+    if (!email) {
+        showToast("Enter your email address.", "error");
+        return;
+    }
+
+    const user = getDemoUsers().find(
+        (item) => normalizeEmail(item.email) === email
+    );
+
+    if (!user) {
+        showToast(
+            "No demo account was found with that email. Create an account first.",
+            "error"
+        );
+
+        return;
+    }
+
+    updateCurrentUser(user);
+
+    closeModal();
+
+    showToast(`Welcome back, ${user.name}.`);
+
+    openDashboard("overview");
+}
+
+
+function logoutDemoUser() {
+    updateCurrentUser(null);
+
+    closeDashboard();
+
+    showToast("You have logged out of the demo account.");
+
+    updateAccountInterface();
+}
+
+
+/* ---------------------------------------------------------
+   4. RESTORE DEMO SESSION
+   --------------------------------------------------------- */
+
+function restoreDemoSession() {
+    try {
+        const rawSession = localStorage.getItem(
+            "poultrylink_demo_session"
+        );
+
+        if (!rawSession) {
+            state.currentUser = null;
+            updateAccountInterface();
+            return;
+        }
+
+        const session = JSON.parse(rawSession);
+
+        if (!session || !session.userId) {
+            state.currentUser = null;
+            updateAccountInterface();
+            return;
+        }
+
+        const user = getUserById(session.userId);
+
+        state.currentUser = user;
+
+    } catch (error) {
+        console.error("Unable to restore demo session:", error);
+        state.currentUser = null;
+    }
+
+    updateAccountInterface();
+}
+
+
+/* ---------------------------------------------------------
+   5. ACCOUNT INTERFACE
+   --------------------------------------------------------- */
+
+function updateAccountInterface() {
+    const user = getCurrentUser();
+
+    const loginButtons = document.querySelectorAll(
+        "[data-open-login]"
+    );
+
+    const registerButtons = document.querySelectorAll(
+        "[data-open-register]"
+    );
+
+    loginButtons.forEach((button) => {
+        button.hidden = Boolean(user);
+    });
+
+    registerButtons.forEach((button) => {
+        button.hidden = Boolean(user);
+    });
+
+    document.querySelectorAll("[data-user-name]").forEach((element) => {
+        element.textContent = user ? user.name : "Guest";
+    });
+
+    document.querySelectorAll("[data-user-email]").forEach((element) => {
+        element.textContent = user ? user.email : "";
+    });
+
+    document.querySelectorAll("[data-user-role]").forEach((element) => {
+        element.textContent = user ? user.role : "";
+    });
+
+    document.querySelectorAll("[data-open-dashboard]").forEach((button) => {
+        button.hidden = !user;
+    });
+}
+
+
+/* ---------------------------------------------------------
+   6. DASHBOARD DRAWER
+   --------------------------------------------------------- */
+
+function openDashboard(tab = "overview") {
+    const user = getCurrentUser();
+
+    if (!user) {
+        openLoginModal();
+        return;
+    }
+
+    const drawer = document.getElementById("dashboardDrawer");
+
+    if (!drawer) {
+        showToast("The dashboard element is missing.", "error");
+        return;
+    }
+
+    state.dashboardTab = tab;
+
+    drawer.hidden = false;
+    drawer.setAttribute("aria-hidden", "false");
+
+    document.body.classList.add("dashboard-open");
+
+    renderDashboard();
+
+    const closeButton = document.getElementById("dashboardClose");
+
+    if (closeButton) {
+        closeButton.focus();
+    }
+}
+
+
+function closeDashboard() {
+    const drawer = document.getElementById("dashboardDrawer");
+
+    if (!drawer) return;
+
+    drawer.hidden = true;
+    drawer.setAttribute("aria-hidden", "true");
+
+    document.body.classList.remove("dashboard-open");
+}
+
+
+function initializeDashboardControls() {
+    const drawer = document.getElementById("dashboardDrawer");
+
+    const closeButton = document.getElementById("dashboardClose");
+
+    if (closeButton) {
+        closeButton.addEventListener("click", closeDashboard);
+    }
+
+    if (drawer) {
+        drawer.addEventListener("click", (event) => {
+            if (event.target === drawer) {
+                closeDashboard();
+            }
+        });
+    }
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeDashboard();
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   7. DASHBOARD NAVIGATION
+   --------------------------------------------------------- */
+
+const dashboardTabs = [
+    {
+        id: "overview",
+        label: "Overview",
+        icon: "▦",
+        roles: ["buyer", "seller"]
+    },
+    {
+        id: "profile",
+        label: "My profile",
+        icon: "◉",
+        roles: ["buyer", "seller"]
+    },
+    {
+        id: "activity",
+        label: "Recent activity",
+        icon: "◷",
+        roles: ["buyer", "seller"]
+    },
+    {
+        id: "notifications",
+        label: "Notifications",
+        icon: "♧",
+        roles: ["buyer", "seller"]
+    },
+    {
+        id: "buyer-orders",
+        label: "My orders",
+        icon: "▤",
+        roles: ["buyer"]
+    },
+    {
+        id: "saved",
+        label: "Saved products",
+        icon: "♡",
+        roles: ["buyer", "seller"]
+    },
+    {
+        id: "storefront",
+        label: "My storefront",
+        icon: "⌂",
+        roles: ["seller"]
+    },
+    {
+        id: "listings",
+        label: "My listings",
+        icon: "▣",
+        roles: ["seller"]
+    },
+    {
+        id: "inventory",
+        label: "Inventory",
+        icon: "▥",
+        roles: ["seller"]
+    },
+    {
+        id: "seller-orders",
+        label: "Customer orders",
+        icon: "▧",
+        roles: ["seller"]
+    },
+    {
+        id: "messages",
+        label: "Messages",
+        icon: "✉",
+        roles: ["buyer", "seller"]
+    },
+    {
+        id: "settings",
+        label: "Settings",
+        icon: "⚙",
+        roles: ["buyer", "seller"]
+    }
 ];
-function readCart(){try{return JSON.parse(localStorage.getItem("pl-cart")||"[]")}catch{return[]}}
-function saveCart(){localStorage.setItem("pl-cart",JSON.stringify(state.cart));$("#cartCount").textContent=state.cart.reduce((n,x)=>n+x.quantity,0)}
-function readSaved(){try{return JSON.parse(localStorage.getItem("pl-saved")||"[]")}catch{return[]}}
-function saveSaved(){localStorage.setItem("pl-saved",JSON.stringify([...state.saved]))}
-function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function money(n){return new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:0}).format(Number(n)||0)}
-function toast(message,type="success"){const el=document.createElement("div");el.className=`toast ${type==="error"?"error":type==="info"?"info":""}`;el.textContent=message;$("#toastRegion").append(el);setTimeout(()=>el.remove(),3600)}
-function productEmoji(category){return ({Eggs:"🥚",Layers:"🐔",Broilers:"🐓","Poultry Feed":"🌾",Equipment:"🧺",Other:"📦"})[category]||"🐣"}
-function productImage(p,cls="product-image"){return p.image?`<img class="${cls}" src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling?.classList.remove('hidden')"><div class="product-placeholder ${p.image?"hidden":""}">${productEmoji(p.category)}</div>`:`<div class="product-placeholder">${productEmoji(p.category)}</div>`}
-function normalizeProduct(d){return {id:d.id,...d,price:Number(d.price)||0,quantity:Number(d.quantity)||0}}
-async function loadMarketplace(){
-  if(!db){state.products=sampleProducts;state.sellers=sampleSellers();renderProducts();renderSellers();return}
-  try{
-    const snap=await getDocs(query(collection(db,"products"),where("status","==","active"),limit(100)));
-    state.products=snap.docs.map(d=>normalizeProduct({id:d.id,...d.data()}));
-    const ss=await getDocs(query(collection(db,"users"),where("accountType","==","seller"),limit(60)));
-    state.sellers=ss.docs.map(d=>({id:d.id,...d.data()}));
-    renderProducts();renderSellers();
-  }catch(e){console.error(e);state.products=[];state.sellers=[];renderProducts();renderSellers();toast("Could not load live listings. Check Firebase configuration and Firestore rules.","error")}
+
+
+function getDashboardTabsForUser(user) {
+    return dashboardTabs.filter((tab) => {
+        return tab.roles.includes(user.role);
+    });
 }
-function sampleSellers(){return [
- {id:"sample-seller-1",displayName:"GreenNest Poultry",businessName:"GreenNest Poultry",location:"Ogun State",bio:"Farm-fresh eggs and quality poultry birds.",accountType:"seller",demo:true},
- {id:"sample-seller-2",displayName:"Sunrise Farms",businessName:"Sunrise Farms",location:"Oyo State",bio:"Broilers and poultry nutrition products.",accountType:"seller",demo:true},
- {id:"sample-seller-3",displayName:"AgroPlus Supplies",businessName:"AgroPlus Supplies",location:"Lagos State",bio:"Poultry equipment and farm essentials.",accountType:"seller",demo:true},
- {id:"sample-seller-4",displayName:"Hilltop Poultry",businessName:"Hilltop Poultry",location:"Kwara State",bio:"Chicks and farm eggs from our poultry operation.",accountType:"seller",demo:true}
-]}
-function filteredProducts(){
- let a=state.products.filter(p=>p.status==="active"&&p.quantity>0);
- if(state.category!=="all")a=a.filter(p=>p.category===state.category);
- if(state.search){const s=state.search.toLowerCase();a=a.filter(p=>[p.name,p.description,p.category,p.sellerName].some(v=>String(v||"").toLowerCase().includes(s)))}
- if(state.sort==="price-asc")a.sort((x,y)=>x.price-y.price);else if(state.sort==="price-desc")a.sort((x,y)=>y.price-x.price);else if(state.sort==="newest")a.sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0));
- return a;
+
+
+function renderDashboardNavigation() {
+    const user = getCurrentUser();
+
+    const navigation = document.getElementById("dashboardNav");
+
+    if (!navigation || !user) return;
+
+    const tabs = getDashboardTabsForUser(user);
+
+    navigation.innerHTML = tabs.map((tab) => `
+        <button
+            type="button"
+            class="dashboard-nav-item ${
+                state.dashboardTab === tab.id ? "active" : ""
+            }"
+            data-dashboard-tab="${escapeHTML(tab.id)}"
+            aria-current="${
+                state.dashboardTab === tab.id ? "page" : "false"
+            }"
+        >
+            <span class="dashboard-nav-icon" aria-hidden="true">
+                ${tab.icon}
+            </span>
+
+            <span>${escapeHTML(tab.label)}</span>
+        </button>
+    `).join("");
 }
-function renderProducts(){
- const products=filteredProducts();$("#resultCount").textContent=`${products.length} product${products.length===1?"":"s"}`;
- $("#productGrid").innerHTML=products.length?products.map(p=>`<article class="product-card"><div class="product-image-wrap">${productImage(p)}<span class="product-badge">${esc(p.category)}</span><button class="save-button ${state.saved.has(p.id)?"saved":""}" data-save="${esc(p.id)}" aria-label="Save ${esc(p.name)}">${state.saved.has(p.id)?"♥":"♡"}</button></div><div class="product-info"><span class="product-category">${esc(p.category)}</span><h3 class="product-title">${esc(p.name)}</h3><p class="product-desc">${esc(p.description||"Contact the seller for more information.")}</p><div><span class="product-price">${money(p.price)}</span><span class="product-unit"> / ${esc(p.unit||"item")}</span><div class="product-stock">${p.quantity} available</div></div><div class="seller-mini"><span class="seller-mini-avatar">🌿</span><span>${esc(p.sellerName||"PoultryLink seller")}</span></div><div class="product-actions"><button class="button button-outline" data-details="${esc(p.id)}">Details</button><button class="button button-primary" data-add="${esc(p.id)}">＋ Add to cart</button></div></div></article>`).join(""):`<div class="empty-state"><strong>No products found just yet</strong>Try another search or category, or check back soon.</div>`;
+
+
+/* ---------------------------------------------------------
+   8. DASHBOARD OVERVIEW
+   --------------------------------------------------------- */
+
+function renderDashboardOverview() {
+    const user = getCurrentUser();
+
+    if (!user) return "";
+
+    const isSeller = user.role === "seller";
+
+    const savedCount = getSavedProductIds().length;
+    const cartCount = getCartCount();
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-welcome">
+                <p class="eyebrow">YOUR POULTRYLINK ACCOUNT</p>
+
+                <h2>
+                    Welcome, ${escapeHTML(user.name)}
+                </h2>
+
+                <p>
+                    ${
+                        isSeller
+                            ? "Manage your seller profile and prepare your marketplace listings."
+                            : "Explore poultry products and keep track of your saved items."
+                    }
+                </p>
+            </div>
+
+            <div class="dashboard-stat-grid">
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Account type
+                    </span>
+
+                    <strong>
+                        ${isSeller ? "Seller" : "Buyer"}
+                    </strong>
+                </article>
+
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Saved products
+                    </span>
+
+                    <strong>${savedCount}</strong>
+                </article>
+
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Cart items
+                    </span>
+
+                    <strong>${cartCount}</strong>
+                </article>
+            </div>
+
+            <div class="dashboard-content-card">
+                <h3>Quick actions</h3>
+
+                <div class="dashboard-quick-actions">
+                    <button
+                        type="button"
+                        class="btn btn-primary"
+                        data-dashboard-tab="profile"
+                    >
+                        Edit profile
+                    </button>
+
+                    <button
+                        type="button"
+                        class="btn btn-outline"
+                        data-dashboard-tab="saved"
+                    >
+                        Saved products
+                    </button>
+
+                    ${
+                        isSeller
+                            ? `
+                                <button
+                                    type="button"
+                                    class="btn btn-outline"
+                                    data-dashboard-tab="storefront"
+                                >
+                                    Manage storefront
+                                </button>
+                            `
+                            : `
+                                <button
+                                    type="button"
+                                    class="btn btn-outline"
+                                    data-action="open-cart"
+                                >
+                                    View cart
+                                </button>
+                            `
+                    }
+                </div>
+            </div>
+
+            <div class="notice notice-warning">
+                <strong>Demo account:</strong>
+                Profile information is stored in this browser.
+                It is not yet connected to a secure online account.
+            </div>
+        </section>
+    `;
 }
-function renderSellers(){
- const sellers=state.sellers.slice(0,6);
- $("#sellerGrid").innerHTML=sellers.length?sellers.map(s=>{const count=state.products.filter(p=>p.sellerId===s.id&&p.status==="active").length;return `<article class="seller-card"><div class="seller-avatar">🌱</div><div><h3>${esc(s.businessName||s.displayName||"Poultry seller")}</h3><p>${esc(s.location||"Nigeria")} · ${esc(s.bio||"Poultry marketplace seller")}</p><span class="seller-stats">${count} listed product${count===1?"":"s"}</span><br><button class="button button-outline" data-seller="${esc(s.id)}">View storefront →</button></div></article>`}).join(""):`<div class="empty-state"><strong>No seller profiles available</strong>Seller storefronts will appear here when sellers join.</div>`;
+
+
+/* ---------------------------------------------------------
+   9. PROFILE FORM
+   --------------------------------------------------------- */
+
+function renderProfilePanel() {
+    const user = getCurrentUser();
+
+    if (!user) return "";
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>My profile</h2>
+
+                <p>
+                    Update your contact details and account information.
+                </p>
+            </div>
+
+            <form id="profileForm" class="form-stack">
+                <div class="form-group">
+                    <label for="profileName">Full name</label>
+
+                    <input
+                        id="profileName"
+                        name="name"
+                        type="text"
+                        maxlength="100"
+                        value="${escapeHTML(user.name || "")}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="profileEmail">Email address</label>
+
+                    <input
+                        id="profileEmail"
+                        type="email"
+                        value="${escapeHTML(user.email || "")}"
+                        disabled
+                    >
+
+                    <p class="form-helper">
+                        Email changes are disabled in this demo.
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="profilePhone">Phone number</label>
+
+                    <input
+                        id="profilePhone"
+                        name="phone"
+                        type="tel"
+                        maxlength="25"
+                        value="${escapeHTML(user.phone || "")}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="profileLocation">Location</label>
+
+                    <input
+                        id="profileLocation"
+                        name="location"
+                        type="text"
+                        maxlength="120"
+                        value="${escapeHTML(user.location || "")}"
+                        required
+                    >
+                </div>
+
+                ${
+                    user.role === "seller"
+                        ? `
+                            <div class="form-group">
+                                <label for="profileBusinessName">
+                                    Business name
+                                </label>
+
+                                <input
+                                    id="profileBusinessName"
+                                    name="businessName"
+                                    type="text"
+                                    maxlength="150"
+                                    value="${escapeHTML(user.businessName || "")}"
+                                >
+                            </div>
+
+                            <div class="form-group">
+                                <label for="profileBusinessDescription">
+                                    Business description
+                                </label>
+
+                                <textarea
+                                    id="profileBusinessDescription"
+                                    name="businessDescription"
+                                    rows="4"
+                                    maxlength="1000"
+                                >${escapeHTML(user.businessDescription || "")}</textarea>
+                            </div>
+                        `
+                        : ""
+                }
+
+                <div class="form-group">
+                    <label for="profileBio">About me (optional)</label>
+
+                    <textarea
+                        id="profileBio"
+                        name="bio"
+                        rows="3"
+                        maxlength="500"
+                    >${escapeHTML(user.bio || "")}</textarea>
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Save profile
+                </button>
+            </form>
+        </section>
+    `;
 }
-function setCategory(c){state.category=c;$$("[data-category]").forEach(b=>b.classList.toggle("active",b.dataset.category===c));$("#categorySearch").value=c==="all"?"all":c;renderProducts();$("#marketplace").scrollIntoView({behavior:"smooth"})}
-function getProduct(id){return state.products.find(p=>p.id===id)||sampleProducts.find(p=>p.id===id)}
-function addToCart(id){const p=getProduct(id);if(!p)return;if(p.sellerId===state.user?.uid){toast("You cannot order your own listing.","error");return}const existing=state.cart.find(x=>x.id===id);if((existing?.quantity||0)+1>p.quantity){toast("That quantity is not currently available.","error");return}if(existing)existing.quantity++;else state.cart.push({id,quantity:1});saveCart();toast("Added to your cart.");}
-function toggleSave(id){if(state.saved.has(id)){state.saved.delete(id);toast("Removed from saved products.","info")}else{state.saved.add(id);toast("Product saved for later.")}saveSaved();renderProducts()}
-function openModal(title,body,eyebrow="POULTRYLINK"){ $("#modalTitle").textContent=title;$("#modalEyebrow").textContent=eyebrow;$("#modalBody").innerHTML=body;$("#modalBackdrop").classList.remove("hidden");document.body.style.overflow="hidden";$("#modalClose").focus()}
-function closeModal(){$("#modalBackdrop").classList.add("hidden");document.body.style.overflow=""}
-function authDialog(mode="signin"){
- const signup=mode==="signup";
- openModal(signup?"Create your PoultryLink account":"Welcome back",`<form id="authForm"><div class="field"><label for="authEmail">Email address</label><input id="authEmail" type="email" autocomplete="email" required></div><div class="field"><label for="authPassword">Password</label><input id="authPassword" type="password" minlength="6" autocomplete="${signup?"new-password":"current-password"}" required><span class="field-hint">At least 6 characters.</span></div>${signup?`<div class="field"><label for="authName">Your name</label><input id="authName" required maxlength="80"></div><div class="field"><label for="authType">How will you use PoultryLink?</label><select id="authType"><option value="buyer">Buyer</option><option value="seller">Seller / farmer</option><option value="both">Both buyer and seller</option></select></div>`:""}<div class="notice">${db?"Your account is managed by Firebase Authentication.":"Demo preview: configure Firebase in app.js to enable real account creation and sign-in."}</div><div class="form-actions"><button class="button button-primary" type="submit">${signup?"Create account":"Sign in"}</button><button class="button button-outline" type="button" id="switchAuth">${signup?"Already have an account? Sign in":"New to PoultryLink? Create account"}</button></div></form>`,`ACCOUNT ACCESS`);
- $("#switchAuth").onclick=()=>authDialog(signup?"signin":"signup");
- $("#authForm").onsubmit=async e=>{e.preventDefault();if(!auth){toast("Firebase is not configured. Update firebaseConfig in app.js first.","error");return}const email=$("#authEmail").value.trim(),password=$("#authPassword").value;try{if(signup){const name=$("#authName").value.trim(),type=$("#authType").value;const cred=await createUserWithEmailAndPassword(auth,email,password);await updateProfile(cred.user,{displayName:name});const profile={uid:cred.user.uid,email,displayName:name,accountType:type,businessName:"",location:"",bio:"",createdAt:serverTimestamp()};await setDoc(doc(db,"users",cred.user.uid),profile);state.profile=profile;toast("Account created successfully.");}else{await signInWithEmailAndPassword(auth,email,password);toast("Signed in successfully.")}closeModal();}catch(err){console.error(err);toast(authError(err.code),"error")}}
+
+
+function saveDemoProfile(formData) {
+    const currentUser = getCurrentUser();
+
+    if (!currentUser) {
+        showToast("Please log in first.", "error");
+        return;
+    }
+
+    const users = getDemoUsers();
+
+    const index = users.findIndex(
+        (user) => String(user.id) === String(currentUser.id)
+    );
+
+    if (index === -1) {
+        showToast("Unable to locate your demo profile.", "error");
+        return;
+    }
+
+    users[index] = {
+        ...users[index],
+        name: String(formData.get("name") || "").trim(),
+        phone: String(formData.get("phone") || "").trim(),
+        location: String(formData.get("location") || "").trim(),
+        bio: String(formData.get("bio") || "").trim()
+    };
+
+    if (users[index].role === "seller") {
+        users[index].businessName = String(
+            formData.get("businessName") || ""
+        ).trim();
+
+        users[index].businessDescription = String(
+            formData.get("businessDescription") || ""
+        ).trim();
+    }
+
+    if (
+        !users[index].name ||
+        !users[index].phone ||
+        !users[index].location
+    ) {
+        showToast("Please complete all required fields.", "error");
+        return;
+    }
+
+    if (!saveDemoUsers(users)) {
+        showToast("Unable to save your profile.", "error");
+        return;
+    }
+
+    updateCurrentUser(users[index]);
+
+    showToast("Profile updated successfully.");
+
+    renderDashboard();
 }
-function authError(code){return ({"auth/email-already-in-use":"An account already exists for this email.","auth/invalid-email":"Enter a valid email address.","auth/weak-password":"Choose a stronger password.","auth/invalid-credential":"Email or password is incorrect.","auth/network-request-failed":"Network error. Check your connection."})[code]||"Authentication failed. Please try again."}
-function requireUser(action){if(!state.user){authDialog("signin");toast("Sign in or create an account to continue.","info");return false}if(action==="seller"&&!["seller","both"].includes(state.profile?.accountType)){toast("Choose a seller account type in your profile to publish listings.","error");return false}return true}
-function openDetails(id){const p=getProduct(id);if(!p)return;state.modalProduct=p;openModal("Product details",`<div class="detail-layout"><div class="detail-image">${p.image?`<img src="${esc(p.image)}" alt="${esc(p.name)}">`:productEmoji(p.category)}</div><div><span class="product-category">${esc(p.category)}</span><h3>${esc(p.name)}</h3><div class="detail-price">${money(p.price)} <span class="product-unit">/ ${esc(p.unit||"item")}</span></div><div class="detail-row">Available quantity: <strong>${p.quantity}</strong></div><div class="detail-row">Seller: <strong>${esc(p.sellerName||"PoultryLink seller")}</strong></div><div class="detail-row">Status: <strong>${esc(p.status||"active")}</strong></div></div></div><p class="detail-description">${esc(p.description||"No description provided.")}</p><div class="form-actions"><button class="button button-primary" id="detailAdd" ${p.quantity<1?"disabled":""}>＋ Add to cart</button><button class="button button-outline" id="detailSeller">View seller</button></div><p class="notice">Confirm product condition, exact quantity, price, and delivery arrangements with the seller before paying. PoultryLink does not currently process online payments.</p>`,"MARKETPLACE");$("#detailAdd").onclick=()=>{addToCart(p.id);closeModal()};$("#detailSeller").onclick=()=>{closeModal();openSeller(p.sellerId)}}
-function openSeller(id){
- const s=state.sellers.find(x=>x.id===id)||{id,displayName:"Poultry seller",businessName:"Poultry seller",location:"Nigeria",bio:"Seller profile"};
- const products=state.products.filter(p=>p.sellerId===id&&p.status==="active");
- openModal("Seller storefront",`<div class="profile-hero"><div class="seller-avatar">🌿</div><div><h3>${esc(s.businessName||s.displayName||"Poultry seller")}</h3><p>${esc(s.location||"Nigeria")} · ${products.length} active listing${products.length===1?"":"s"}</p></div></div><p class="detail-description">${esc(s.bio||"This seller has not added a storefront description yet.")}</p><h3>Available products</h3>${products.length?products.map(p=>`<div class="dash-list-item"><div><strong>${esc(p.name)}</strong><small>${money(p.price)} · ${p.quantity} available</small></div><button class="button button-outline" data-store-add="${esc(p.id)}">Add</button></div>`).join(""):`<div class="message-empty">No active products are listed by this seller.</div>`}<div class="notice">Seller details are supplied by account holders. Independently verify seller identity and transaction arrangements.</div>`,"SELLER DIRECTORY");
- $$("[data-store-add]").forEach(b=>b.onclick=()=>{addToCart(b.dataset.storeAdd);closeModal()});
+
+
+/* ---------------------------------------------------------
+   10. ACTIVITY AND NOTIFICATIONS
+   --------------------------------------------------------- */
+
+function renderActivityPanel() {
+    const user = getCurrentUser();
+
+    if (!user) return "";
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>Recent activity</h2>
+
+                <p>
+                    A summary of available activity in this demo.
+                </p>
+            </div>
+
+            <div class="dashboard-content-card">
+                <h3>Account created</h3>
+
+                <p>
+                    ${
+                        user.createdAt
+                            ? escapeHTML(
+                                new Date(user.createdAt).toLocaleString()
+                            )
+                            : "Date unavailable"
+                    }
+                </p>
+            </div>
+
+            <div class="dashboard-content-card">
+                <h3>Saved products</h3>
+
+                <p>
+                    You currently have
+                    ${getSavedProductIds().length}
+                    saved product(s).
+                </p>
+            </div>
+
+            <div class="dashboard-content-card">
+                <h3>Shopping cart</h3>
+
+                <p>
+                    Your cart currently contains
+                    ${getCartCount()}
+                    item(s).
+                </p>
+            </div>
+        </section>
+    `;
 }
-function openCart(){
- const lines=state.cart.map(line=>({...line,product:getProduct(line.id)})).filter(x=>x.product);
- const subtotal=lines.reduce((sum,x)=>sum+x.product.price*x.quantity,0);
- openModal("Your shopping cart",lines.length?`${lines.map(x=>`<div class="cart-line"><div class="cart-line-img">${x.product.image?`<img src="${esc(x.product.image)}" alt="">`:productEmoji(x.product.category)}</div><div><h4>${esc(x.product.name)}</h4><p>${money(x.product.price)} each · ${x.product.quantity} available</p><div class="quantity-control"><button data-minus="${esc(x.id)}" aria-label="Decrease quantity">−</button><span>${x.quantity}</span><button data-plus="${esc(x.id)}" aria-label="Increase quantity">+</button></div></div><div class="cart-line-end"><strong>${money(x.product.price*x.quantity)}</strong><button class="remove-line" data-remove="${esc(x.id)}">Remove</button></div></div>`).join("")}<div class="cart-total"><span>Subtotal</span><strong>${money(subtotal)}</strong></div><p class="notice">Delivery charges and payment are not included. This prototype does not collect online payments.</p><div class="cart-actions"><button class="button button-outline" id="continueShopping">Keep shopping</button><button class="button button-primary" id="checkoutBtn">Proceed to checkout →</button></div>`:`<div class="empty-state"><strong>Your cart is taking a little break</strong>Add products from the marketplace and they’ll appear here.</div><button class="button button-primary" id="emptyBrowse">Browse products</button>`,"SHOPPING CART");
- $$("[data-minus]").forEach(b=>b.onclick=()=>changeCart(b.dataset.minus,-1));$$("[data-plus]").forEach(b=>b.onclick=()=>changeCart(b.dataset.plus,1));$$("[data-remove]").forEach(b=>b.onclick=()=>{state.cart=state.cart.filter(x=>x.id!==b.dataset.remove);saveCart();openCart()});
- if($("#continueShopping"))$("#continueShopping").onclick=()=>closeModal();if($("#emptyBrowse"))$("#emptyBrowse").onclick=()=>{closeModal();$("#marketplace").scrollIntoView({behavior:"smooth"})};if($("#checkoutBtn"))$("#checkoutBtn").onclick=()=>checkoutDialog();
+
+
+function renderNotificationsPanel() {
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>Notifications</h2>
+
+                <p>
+                    Notifications from a live server are not available
+                    in this demonstration.
+                </p>
+            </div>
+
+            <div class="empty-state">
+                <div class="empty-state-icon" aria-hidden="true">
+                    ♧
+                </div>
+
+                <h3>No new notifications</h3>
+
+                <p>
+                    When server-side notifications are configured,
+                    order updates and account alerts can appear here.
+                </p>
+            </div>
+        </section>
+    `;
 }
-function changeCart(id,delta){const line=state.cart.find(x=>x.id===id),p=getProduct(id);if(!line||!p)return;const n=line.quantity+delta;if(n<1)state.cart=state.cart.filter(x=>x.id!==id);else if(n>p.quantity){toast("Quantity exceeds the current listing quantity.","error");return}else line.quantity=n;saveCart();openCart()}
-function checkoutDialog(){
- if(!state.cart.length){toast("Your cart is empty.","error");return}if(!requireUser())return;
- const lines=state.cart.map(x=>({...x,product:getProduct(x.id)})).filter(x=>x.product);
- const total=lines.reduce((n,x)=>n+x.product.price*x.quantity,0);
- openModal("Checkout",`<p class="muted">Review your order and provide contact and delivery information.</p><div class="notice">This submits an order request only. Online payment, delivery booking, and automated stock reservation are not enabled in this frontend.</div><form id="checkoutForm"><div class="form-grid"><div class="field"><label for="buyerName">Full name *</label><input id="buyerName" required maxlength="100" value="${esc(state.profile?.displayName||state.user.displayName||"")}"></div><div class="field"><label for="buyerPhone">Phone number *</label><input id="buyerPhone" required type="tel" maxlength="30" placeholder="e.g. 08012345678"></div><div class="field full"><label for="buyerAddress">Delivery address / collection details *</label><textarea id="buyerAddress" required maxlength="500" placeholder="Enter your address or proposed collection arrangement"></textarea></div><div class="field full"><label for="buyerNote">Order note (optional)</label><textarea id="buyerNote" maxlength="500" placeholder="Preferred delivery date or other details"></textarea></div></div><div class="cart-total"><span>Order subtotal</span><strong>${money(total)}</strong></div><button class="button button-primary" type="submit" style="width:100%">Submit order request</button></form>`,"ORDER DETAILS");
- $("#checkoutForm").onsubmit=async e=>{e.preventDefault();if(!db){toast("Live order submission requires Firebase configuration.","error");return}
- const btn=e.submitter;btn.disabled=true;
- try{
-  // This client write is only a request record. Production must use a trusted backend/Cloud Function
-  // to re-read every product, verify current stock/prices, calculate totals, and reserve inventory.
-  const items=lines.map(x=>({productId:x.id,name:x.product.name,sellerId:x.product.sellerId||"",sellerName:x.product.sellerName||"",quantity:x.quantity,unitPrice:x.product.price,subtotal:x.quantity*x.product.price}));
-  const order={buyerId:state.user.uid,buyerName:$("#buyerName").value.trim(),buyerEmail:state.user.email||"",buyerPhone:$("#buyerPhone").value.trim(),deliveryAddress:$("#buyerAddress").value.trim(),buyerNote:$("#buyerNote").value.trim(),items,total,status:"pending",paymentStatus:"unpaid",createdAt:serverTimestamp()};
-  if(!order.buyerName||!order.buyerPhone||!order.deliveryAddress||!items.length)throw new Error("Please complete all required fields.");
-  await addDoc(collection(db,"orders"),order);state.cart=[];saveCart();closeModal();toast("Order request submitted. Check your dashboard for its status.");openDashboard("buyer-orders");
- }catch(err){console.error(err);toast(err.message||"Could not submit order. Please try again.","error");btn.disabled=false}
- };
+
+
+/* ---------------------------------------------------------
+   11. SAVED PRODUCTS DASHBOARD PANEL
+   --------------------------------------------------------- */
+
+function renderSavedDashboardPanel() {
+    const products = getSavedProductIds()
+        .map((id) => getProductById(id))
+        .filter(Boolean);
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>Saved products</h2>
+
+                <p>
+                    Products you have saved for later.
+                </p>
+            </div>
+
+            ${
+                products.length
+                    ? `
+                        <div class="saved-products-list">
+                            ${products.map(createSavedProductCard).join("")}
+                        </div>
+                    `
+                    : `
+                        <div class="empty-state">
+                            <h3>No saved products</h3>
+
+                            <p>
+                                Browse the marketplace and save products
+                                you may want to buy later.
+                            </p>
+
+                            <button
+                                type="button"
+                                class="btn btn-primary"
+                                data-action="close-and-browse"
+                            >
+                                Browse marketplace
+                            </button>
+                        </div>
+                    `
+            }
+        </section>
+    `;
 }
-async function openListingForm(product=null){
- if(!requireUser("seller"))return;state.editingProduct=product;
- openModal(product?"Edit product listing":"Create a product listing",`<form id="listingForm"><div class="form-grid"><div class="field full"><label for="listingName">Product name *</label><input id="listingName" required maxlength="120" value="${esc(product?.name||"")}"></div><div class="field"><label for="listingCategory">Category *</label><select id="listingCategory" required>${["Eggs","Layers","Broilers","Poultry Feed","Equipment","Other"].map(c=>`<option ${product?.category===c?"selected":""}>${c}</option>`).join("")}</select></div><div class="field"><label for="listingStatus">Listing status</label><select id="listingStatus"><option value="active" ${!product||product.status==="active"?"selected":""}>Active</option><option value="inactive" ${product?.status==="inactive"?"selected":""}>Inactive</option></select></div><div class="field"><label for="listingPrice">Price in NGN *</label><input id="listingPrice" type="number" min="1" max="100000000" step="1" required value="${esc(product?.price??"")}"></div><div class="field"><label for="listingQuantity">Available quantity *</label><input id="listingQuantity" type="number" min="0" max="1000000" step="1" required value="${esc(product?.quantity??"")}"></div><div class="field"><label for="listingUnit">Unit label</label><input id="listingUnit" maxlength="30" value="${esc(product?.unit||"item")}" placeholder="tray, bird, bag, crate"></div><div class="field"><label for="listingImage">Image URL (optional)</label><input id="listingImage" type="url" maxlength="1000" value="${esc(product?.image||"")}"><span class="field-hint">Use a publicly accessible HTTPS image URL. Firebase Storage upload is not included.</span></div><div class="field full"><label for="listingDescription">Description *</label><textarea id="listingDescription" required maxlength="2000">${esc(product?.description||"")}</textarea></div></div><div class="form-actions"><button class="button button-primary" type="submit">${product?"Save changes":"Publish listing"}</button><button class="button button-outline" type="button" id="cancelListing">Cancel</button></div></form>`,"SELLER STUDIO");
- $("#cancelListing").onclick=closeModal;$("#listingForm").onsubmit=async e=>{e.preventDefault();if(!db){toast("Live listing management requires Firebase configuration.","error");return}
- const price=Number($("#listingPrice").value),quantity=Number($("#listingQuantity").value),name=$("#listingName").value.trim(),description=$("#listingDescription").value.trim(),image=$("#listingImage").value.trim();
- if(!Number.isFinite(price)||price<=0||!Number.isInteger(quantity)||quantity<0){toast("Enter a valid positive price and a whole-number quantity.","error");return}
- if(image&&!/^https:\/\//i.test(image)){toast("Product image URLs must use HTTPS.","error");return}
- const data={name,description,category:$("#listingCategory").value,price,quantity,unit:$("#listingUnit").value.trim()||"item",image,status:$("#listingStatus").value,sellerId:state.user.uid,sellerName:state.profile?.businessName||state.profile?.displayName||state.user.displayName||"PoultryLink seller",updatedAt:serverTimestamp()};
- try{if(product){await updateDoc(doc(db,"products",product.id),data)}else{data.createdAt=serverTimestamp();await addDoc(collection(db,"products"),data)}closeModal();toast(product?"Listing updated.":"Listing published.");await loadMarketplace();openDashboard("listings")}catch(err){console.error(err);toast("Could not save listing. Check your permissions and try again.","error")}
- };
+
+
+/* ---------------------------------------------------------
+   12. SETTINGS PANEL
+   --------------------------------------------------------- */
+
+function renderSettingsPanel() {
+    const user = getCurrentUser();
+
+    if (!user) return "";
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>Account settings</h2>
+
+                <p>
+                    Manage your demonstration account.
+                </p>
+            </div>
+
+            <div class="dashboard-content-card">
+                <h3>Account information</h3>
+
+                <p>
+                    <strong>Account type:</strong>
+                    ${escapeHTML(user.role)}
+                </p>
+
+                <p>
+                    <strong>Account mode:</strong>
+                    Demo
+                </p>
+
+                <p>
+                    <strong>Verification:</strong>
+                    ${
+                        user.verificationStatus === "verified"
+                            ? "Verified"
+                            : "Not verified"
+                    }
+                </p>
+            </div>
+
+            <div class="notice notice-warning">
+                This demonstration does not provide password management,
+                two-factor authentication, or secure account deletion.
+            </div>
+
+            <button
+                type="button"
+                class="btn btn-danger"
+                data-action="logout"
+            >
+                Log out
+            </button>
+        </section>
+    `;
 }
-async function openDashboard(tab="overview"){
- if(!requireUser())return;state.dashboardTab=tab;$("#dashboardDrawer").classList.remove("hidden");$("#drawerScrim").classList.remove("hidden");document.body.style.overflow="hidden";
- $("#drawerUser").innerHTML=`<div><strong>${esc(state.profile?.businessName||state.profile?.displayName||state.user.displayName||"PoultryLink member")}</strong><small>${esc(state.user.email||"")} · ${esc(state.profile?.accountType||"buyer")}</small></div><button class="button button-outline" id="signOutBtn">Sign out</button>`;
- $("#signOutBtn").onclick=async()=>{if(auth)await signOut(auth);closeDashboard();toast("You have signed out.","info")};
- renderDashboardTab(tab);
+
+
+/* ---------------------------------------------------------
+   13. PLACEHOLDER DASHBOARD PANELS
+   --------------------------------------------------------- */
+
+function renderDashboardPlaceholder(title, description) {
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>${escapeHTML(title)}</h2>
+
+                <p>${escapeHTML(description)}</p>
+            </div>
+
+            <div class="empty-state">
+                <h3>Feature setup pending</h3>
+
+                <p>
+                    This section requires additional marketplace
+                    functionality before it can display live information.
+                </p>
+            </div>
+        </section>
+    `;
 }
-function closeDashboard(){$("#dashboardDrawer").classList.add("hidden");$("#drawerScrim").classList.add("hidden");document.body.style.overflow=""}
-async function userOrders(seller=false){
- if(!db||!state.user)return[];try{const field=seller?"sellerIds":"buyerId";if(seller){const snap=await getDocs(query(collection(db,"orders"),where("sellerIds","array-contains",state.user.uid),limit(50)));return snap.docs.map(d=>({id:d.id,...d.data()}))}
- const snap=await getDocs(query(collection(db,"orders"),where("buyerId","==",state.user.uid),limit(50)));return snap.docs.map(d=>({id:d.id,...d.data()}))}catch(e){console.warn(e);return[]}
+
+
+/* ---------------------------------------------------------
+   14. DASHBOARD CONTENT RENDERER
+   --------------------------------------------------------- */
+
+function getDashboardContent(tabId) {
+    switch (tabId) {
+        case "overview":
+            return renderDashboardOverview();
+
+        case "profile":
+            return renderProfilePanel();
+
+        case "activity":
+            return renderActivityPanel();
+
+        case "notifications":
+            return renderNotificationsPanel();
+
+        case "saved":
+            return renderSavedDashboardPanel();
+
+        case "settings":
+            return renderSettingsPanel();
+
+        case "buyer-orders":
+            return renderDashboardPlaceholder(
+                "My orders",
+                "View orders associated with your buyer account."
+            );
+
+        case "storefront":
+            return renderDashboardPlaceholder(
+                "My storefront",
+                "Manage your public seller storefront."
+            );
+
+        case "listings":
+            return renderDashboardPlaceholder(
+                "My listings",
+                "Create and manage products offered for sale."
+            );
+
+        case "inventory":
+            return renderDashboardPlaceholder(
+                "Inventory",
+                "Review stock quantities and product availability."
+            );
+
+        case "seller-orders":
+            return renderDashboardPlaceholder(
+                "Customer orders",
+                "Review orders placed with your store."
+            );
+
+        case "messages":
+            return renderDashboardPlaceholder(
+                "Messages",
+                "Communicate with buyers and sellers."
+            );
+
+        default:
+            return renderDashboardOverview();
+    }
 }
-async function renderDashboardTab(tab){
- state.dashboardTab=tab;$$("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
- const el=$("#dashboardContent");el.innerHTML='<div class="loading-state">Loading your dashboard…</div>';
- const isSeller=["seller","both"].includes(state.profile?.accountType);
- const mine=state.products.filter(p=>p.sellerId===state.user.uid);
- const savedProducts=state.products.filter(p=>state.saved.has(p.id));
- let html="";
- if(tab==="overview"){html=`<h3>Welcome back, ${esc((state.profile?.displayName||state.user.displayName||"there").split(" ")[0])} 👋</h3><div class="dash-stats"><div class="dash-stat"><small>My listings</small><strong>${mine.length}</strong></div><div class="dash-stat"><small>Saved products</small><strong>${state.saved.size}</strong></div><div class="dash-stat"><small>Cart items</small><strong>${state.cart.reduce((n,x)=>n+x.quantity,0)}</strong></div></div><div class="dash-actions"><button class="button button-primary" id="dashBrowse">Browse marketplace</button>${isSeller?'<button class="button button-outline" id="dashNewListing">＋ Add a listing</button>':'<button class="button button-outline" id="dashBecomeSeller">Seller profile</button>'}</div><h3>Quick links</h3>${["profile","buyer-orders","saved","listings","inventory","seller-orders","messages","settings"].map(t=>`<div class="dash-list-item"><div><strong>${dashLabel(t)}</strong><small>Open your ${dashLabel(t).toLowerCase()} section</small></div><button class="button button-outline" data-gotab="${t}">Open →</button></div>`).join("")}`}
- else if(tab==="profile"){const p=state.profile||{};html=`<h3>Your profile</h3><form id="profileForm"><div class="form-grid"><div class="field"><label>Display name *</label><input id="profileName" required maxlength="80" value="${esc(p.displayName||state.user.displayName||"")}"></div><div class="field"><label>Account type</label><select id="profileType"><option value="buyer" ${p.accountType==="buyer"?"selected":""}>Buyer</option><option value="seller" ${p.accountType==="seller"?"selected":""}>Seller / farmer</option><option value="both" ${p.accountType==="both"?"selected":""}>Both</option></select></div><div class="field"><label>Business / storefront name</label><input id="profileBusiness" maxlength="100" value="${esc(p.businessName||"")}"></div><div class="field"><label>State / location</label><input id="profileLocation" maxlength="100" value="${esc(p.location||"")}"></div><div class="field full"><label>About you / your business</label><textarea id="profileBio" maxlength="700">${esc(p.bio||"")}</textarea></div></div><button class="button button-primary">Save profile</button></form><p class="notice">Email: ${esc(state.user.email||"")} (managed by Firebase Authentication).</p>`}
- else if(tab==="activity"){html=`<h3>Recent activity</h3><div class="message-empty">Your activity feed is a basic interface placeholder. Activity events are not currently stored as a separate feed.</div>`}
- else if(tab==="notifications"){html=`<h3>Notifications</h3><div class="message-empty">You’re all caught up. Real email, push and in-app notifications need a notification service and backend triggers.</div>`}
- else if(tab==="buyer-orders"){const orders=await userOrders(false);html=`<h3>Buyer orders</h3>${orders.length?orders.map(o=>`<div class="dash-list-item"><div><strong>Order ${esc(o.id.slice(0,8).toUpperCase())}</strong><small>${(o.items||[]).length} item type(s) · ${money(o.total)} · ${o.createdAt?.toDate?o.createdAt.toDate().toLocaleDateString():"Recently placed"}</small></div><span class="status-pill ${o.status==="pending"?"pending":""}">${esc(o.status||"pending")}</span></div>`).join(""):'<div class="message-empty">Your submitted orders will appear here.</div>'}`}
- else if(tab==="saved"){html=`<h3>Saved products</h3>${savedProducts.length?savedProducts.map(p=>`<div class="dash-list-item"><div><strong>${esc(p.name)}</strong><small>${money(p.price)} · ${esc(p.category)}</small></div><button class="button button-outline" data-save-dash="${esc(p.id)}">Unsave</button></div>`).join(""):'<div class="message-empty">Products you save will appear here. Saved products are currently stored in this browser.</div>'}`}
- else if(tab==="storefront"){const p=state.profile||{};html=`<h3>Storefront settings</h3><p class="muted">Your storefront uses the information in your profile and your active product listings.</p><div class="profile-hero" style="margin-top:16px"><div class="seller-avatar">🌿</div><div><h3>${esc(p.businessName||p.displayName||"Your storefront")}</h3><p>${esc(p.location||"Add a location in your profile")}</p></div></div><p class="detail-description">${esc(p.bio||"Add a short business description in your profile.")}</p><button class="button button-primary" id="editStorefront">Edit storefront details</button>`}
- else if(tab==="listings"||tab==="inventory"){html=`<h3>${tab==="inventory"?"Inventory management":"My listings"}</h3><div class="dash-actions"><button class="button button-primary" id="dashNewListing">＋ Create listing</button></div>${mine.length?mine.map(p=>`<div class="dash-list-item"><div><strong>${esc(p.name)}</strong><small>${money(p.price)} · Quantity: ${p.quantity} · ${esc(p.category)}</small><span class="status-pill ${p.status==="active"?"":"inactive"}">${esc(p.status||"active")}</span></div><div class="form-actions"><button class="button button-outline" data-edit="${esc(p.id)}">Edit</button><button class="button button-outline" data-toggle-status="${esc(p.id)}">${p.status==="active"?"Deactivate":"Activate"}</button></div></div>`).join(""):'<div class="message-empty">You have not published any listings yet.</div>'}`}
- else if(tab==="seller-orders"){html=`<h3>Seller orders</h3><div class="message-empty">Seller order visibility and status management require a trusted backend that indexes each order by seller and verifies every seller's permissions. This frontend does not expose other buyers’ orders.</div>`}
- else if(tab==="messages"){html=`<h3>Messages</h3><div class="message-empty">Messaging interface foundation. Real message delivery and conversation history require a secured messaging backend.</div><button class="button button-outline" id="messageInfo">Messaging information</button>`}
- else if(tab==="settings"){html=`<h3>Settings</h3><div class="dash-list-item"><div><strong>Account security</strong><small>Use a unique password and never share verification codes.</small></div></div><div class="dash-list-item"><div><strong>Session</strong><small>Sign out on shared devices.</small></div><button class="button button-outline" id="settingsSignOut">Sign out</button></div><div class="dash-list-item"><div><strong>Privacy & terms</strong><small>Read the current prototype notices.</small></div><button class="button button-outline" id="settingsPrivacy">Read notices</button></div>`}
- el.innerHTML=html;
- if($("#dashBrowse"))$("#dashBrowse").onclick=()=>{closeDashboard();$("#marketplace").scrollIntoView({behavior:"smooth"})};
- if($("#dashNewListing"))$("#dashNewListing").onclick=()=>openListingForm();
- if($("#dashBecomeSeller"))$("#dashBecomeSeller").onclick=()=>renderDashboardTab("profile");
- $$("[data-gotab]").forEach(b=>b.onclick=()=>renderDashboardTab(b.dataset.gotab));
- if($("#profileForm"))$("#profileForm").onsubmit=saveProfile;
- if($("#editStorefront"))$("#editStorefront").onclick=()=>renderDashboardTab("profile");
- $$("[data-edit]").forEach(b=>b.onclick=()=>openListingForm(getProduct(b.dataset.edit)));
- $$("[data-toggle-status]").forEach(b=>b.onclick=()=>toggleListingStatus(b.dataset.toggleStatus));
- $$("[data-save-dash]").forEach(b=>b.onclick=()=>{toggleSave(b.dataset.saveDash);renderDashboardTab("saved")});
- if($("#messageInfo"))$("#messageInfo").onclick=()=>legalDialog("Messaging","Real-time messaging is not connected in this version. A production implementation needs authenticated conversations, participant-only access rules, abuse reporting, and server-side validation.");
- if($("#settingsSignOut"))$("#settingsSignOut").onclick=async()=>{if(auth)await signOut(auth);closeDashboard()};
- if($("#settingsPrivacy"))$("#settingsPrivacy").onclick=()=>legalDialog("Privacy and terms","PoultryLink is a marketplace prototype. Do not enter unnecessary sensitive information. Account and marketplace data are stored in Firebase only after configuration. Online payments, delivery services, and notifications are not connected.");
+
+
+/* ---------------------------------------------------------
+   15. RENDER DASHBOARD
+   --------------------------------------------------------- */
+
+function renderDashboard() {
+    const user = getCurrentUser();
+
+    if (!user) return;
+
+    const titleElement = document.getElementById("dashboardUserName");
+    const roleElement = document.getElementById("dashboardUserRole");
+    const contentElement = document.getElementById("dashboardContent");
+
+    if (titleElement) {
+        titleElement.textContent = user.name;
+    }
+
+    if (roleElement) {
+        roleElement.textContent =
+            user.role === "seller" ? "Seller account" : "Buyer account";
+    }
+
+    renderDashboardNavigation();
+
+    if (contentElement) {
+        contentElement.innerHTML = getDashboardContent(
+            state.dashboardTab
+        );
+    }
 }
-function dashLabel(t){return ({"buyer-orders":"Buyer orders","seller-orders":"Seller orders","saved":"Saved products","listings":"My listings","inventory":"Inventory","messages":"Messages"})[t]||t.charAt(0).toUpperCase()+t.slice(1)}
-async function saveProfile(e){e.preventDefault();if(!db){toast("Firebase is not configured.","error");return}const data={displayName:$("#profileName").value.trim(),accountType:$("#profileType").value,businessName:$("#profileBusiness").value.trim(),location:$("#profileLocation").value.trim(),bio:$("#profileBio").value.trim(),updatedAt:serverTimestamp()};try{await setDoc(doc(db,"users",state.user.uid),{...state.profile,...data,uid:state.user.uid,email:state.user.email},{merge:true});await updateProfile(state.user,{displayName:data.displayName});state.profile={...state.profile,...data};toast("Profile updated.");renderDashboardTab("profile")}catch(err){console.error(err);toast("Could not update profile.","error")}}
-async function toggleListingStatus(id){const p=getProduct(id);if(!p||p.sellerId!==state.user.uid)return;if(!db){toast("Firebase is not configured.","error");return}try{await updateDoc(doc(db,"products",id),{status:p.status==="active"?"inactive":"active",updatedAt:serverTimestamp()});toast("Listing status updated.");await loadMarketplace();renderDashboardTab("listings")}catch(e){console.error(e);toast("Could not update listing status.","error")}}
-function legalDialog(title,text){openModal(title,`<div class="legal-copy"><p>${esc(text)}</p><h3>Marketplace safety</h3><p>Confirm product availability, seller identity, pricing, and delivery terms independently. Never send a password, one-time code, or sensitive financial credentials to another user.</p><h3>Prototype limitations</h3><p>This frontend does not process online payments or provide delivery, verification, ratings, or push-notification services. Do not treat a pending order as a completed sale.</p><h3>Data and privacy</h3><p>Only enter information needed for a transaction. Before public launch, publish a reviewed privacy policy and terms, define retention practices, and verify the Firebase security rules and backend workflows.</p></div>`,"INFORMATION")}
-function wireEvents(){
- $("#year").textContent=new Date().getFullYear();saveCart();
- $("#menuToggle").onclick=()=>{const open=$("#mainNav").classList.toggle("open");$("#menuToggle").setAttribute("aria-expanded",String(open))};
- $$("#mainNav a").forEach(a=>a.onclick=()=>$("#mainNav").classList.remove("open"));
- $("#searchForm").onsubmit=e=>{e.preventDefault();state.search=$("#searchInput").value.trim();state.category=$("#categorySearch").value;$$("[data-category]").forEach(b=>b.classList.toggle("active",b.dataset.category===state.category));renderProducts();$("#marketplace").scrollIntoView({behavior:"smooth"})};
- $("#sortSelect").onchange=e=>{state.sort=e.target.value;renderProducts()};
- $$("#filterChips [data-category]").forEach(b=>b.onclick=()=>setCategory(b.dataset.category));
- $$(".category-card").forEach(b=>b.onclick=()=>setCategory(b.dataset.category));
- $("#productGrid").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.dataset.add)addToCart(b.dataset.add);if(b.dataset.details)openDetails(b.dataset.details);if(b.dataset.save)toggleSave(b.dataset.save)});
- $("#showAllBtn").onclick=loadMarketplace;$("#cartHeaderBtn").onclick=openCart;
- $("#savedHeaderBtn").onclick=()=>{if(!state.saved.size){toast("You have no saved products yet.","info");return}openModal("Saved products",state.products.filter(p=>state.saved.has(p.id)).map(p=>`<div class="dash-list-item"><div><strong>${esc(p.name)}</strong><small>${money(p.price)}</small></div><button class="button button-outline" data-saved-add="${esc(p.id)}">Add to cart</button></div>`).join("")||'<div class="message-empty">Saved products may be on a different browser or no longer available.</div>',"YOUR SHORTLIST");$$("[data-saved-add]").forEach(b=>b.onclick=()=>{addToCart(b.dataset.savedAdd);closeModal()})};
- $("#signInBtn").onclick=()=>authDialog("signin");$("#heroSellBtn").onclick=()=>requireUser("seller")&&openListingForm();$("#sellHeaderBtn").onclick=()=>requireUser("seller")&&openListingForm();$("#sellerBandBtn").onclick=()=>requireUser("seller")&&openListingForm();$("#footerSellBtn").onclick=()=>requireUser("seller")&&openListingForm();
- $("#accountBtn").onclick=()=>openDashboard();$("#footerDashboardBtn").onclick=()=>openDashboard();$("#allSellersBtn").onclick=()=>$("#sellerGrid").scrollIntoView({behavior:"smooth"});
- $("#sellerGrid").addEventListener("click",e=>{const b=e.target.closest("[data-seller]");if(b)openSeller(b.dataset.seller)});
- $("#modalClose").onclick=closeModal;$("#modalBackdrop").onclick=e=>{if(e.target===$("#modalBackdrop"))closeModal()};document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeDashboard()}});
- $("#closeDashboard").onclick=closeDashboard;$("#drawerScrim").onclick=closeDashboard;$("#dashboardTabs").onclick=e=>{const b=e.target.closest("[data-tab]");if(b)renderDashboardTab(b.dataset.tab)};
- $("#safetyBtn").onclick=()=>legalDialog("Marketplace safety","PoultryLink helps buyers discover listings but does not independently guarantee seller claims. Ask for recent photos, business details, product specifications, and references. Agree on payment and delivery terms before sending money. Avoid unusually pressured transactions.");
- $("#termsBtn").onclick=()=>legalDialog("Terms of use","Use PoultryLink lawfully and provide accurate listing information. Sellers are responsible for their products, prices, availability, and fulfilment. Buyers should verify details and agree transaction terms directly. This prototype is provided as-is and does not guarantee transactions.");
- $("#privacyBtn").onclick=()=>legalDialog("Privacy notice","Account details and marketplace records may be stored in Firebase after configuration. Public storefront information should not include private contact details unless you intend to share them. A production service needs a reviewed privacy policy, retention schedule, and data-subject request process.");
- $("#contactBtn").onclick=()=>legalDialog("Contact PoultryLink","Contact support information has not yet been configured for this project. Add a verified support email and escalation process before launching publicly.");
+
+
+/* ---------------------------------------------------------
+   16. DASHBOARD NAVIGATION EVENTS
+   --------------------------------------------------------- */
+
+function initializeDashboardNavigation() {
+    document.addEventListener("click", (event) => {
+        const tabButton = event.target.closest("[data-dashboard-tab]");
+
+        if (!tabButton) return;
+
+        const tabId = tabButton.dataset.dashboardTab;
+
+        if (!tabId) return;
+
+        const user = getCurrentUser();
+
+        if (!user) {
+            openLoginModal();
+            return;
+        }
+
+        const allowedTabs = getDashboardTabsForUser(user);
+
+        if (!allowedTabs.some((tab) => tab.id === tabId)) {
+            showToast("That section is not available for this account.", "error");
+            return;
+        }
+
+        state.dashboardTab = tabId;
+
+        renderDashboard();
+    });
 }
-async function initAuth(){
- if(!auth){$("#signInBtn").classList.remove("hidden");return}
- onAuthStateChanged(auth,async user=>{state.user=user;state.profile=null;
-  if(user&&db){try{const snap=await getDoc(doc(db,"users",user.uid));state.profile=snap.exists()?snap.data():{uid:user.uid,email:user.email,displayName:user.displayName||"",accountType:"buyer"};if(!snap.exists())await setDoc(doc(db,"users",user.uid),state.profile,{merge:true})}catch(e){console.error("Could not load profile",e)}}
-  $("#signInBtn").classList.toggle("hidden",!!user);$("#accountBtn").classList.toggle("hidden",!user);
- });
+
+
+/* ---------------------------------------------------------
+   17. ACCOUNT BUTTON EVENTS
+   --------------------------------------------------------- */
+
+function initializeAccountActions() {
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest("button, a");
+
+        if (!button) return;
+
+        if (button.matches("[data-open-login]")) {
+            event.preventDefault();
+            openLoginModal();
+            return;
+        }
+
+        if (button.matches("[data-open-register]")) {
+            event.preventDefault();
+            openRegistrationModal();
+            return;
+        }
+
+        if (button.matches("[data-open-dashboard]")) {
+            event.preventDefault();
+            openDashboard("overview");
+            return;
+        }
+
+        if (button.matches("[data-action='open-login']")) {
+            openLoginModal();
+            return;
+        }
+
+        if (button.matches("[data-action='open-register']")) {
+            openRegistrationModal();
+            return;
+        }
+
+        if (button.matches("[data-action='logout']")) {
+            logoutDemoUser();
+        }
+    });
 }
-wireEvents();initAuth();loadMarketplace();
+
+
+/* ---------------------------------------------------------
+   18. ACCOUNT FORM SUBMISSION
+   --------------------------------------------------------- */
+
+function initializeAccountForms() {
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+
+        if (form.id === "registrationForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            registerDemoUser(new FormData(form));
+            return;
+        }
+
+        if (form.id === "loginForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            loginDemoUser(new FormData(form));
+            return;
+        }
+
+        if (form.id === "profileForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            saveDemoProfile(new FormData(form));
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   19. START CHUNK 3 FEATURES
+   --------------------------------------------------------- */
+
+initializeDashboardControls();
+initializeDashboardNavigation();
+initializeAccountActions();
+initializeAccountForms();
+restoreDemoSession();
+
+/* END OF CHUNK 3 */
+
+
+/* =========================================================
+   POULTRYLINK — APP.JS
+   CHUNK 4 OF 5
+   SELLER STOREFRONTS, LISTINGS, INVENTORY & VERIFICATION
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   1. SELLER ACCESS AND STORAGE HELPERS
+   --------------------------------------------------------- */
+
+function requireSellerAccount() {
+    const user = getCurrentUser();
+
+    if (!user) {
+        showToast("Please log in to continue.", "error");
+        openLoginModal();
+        return null;
+    }
+
+    if (user.role !== "seller") {
+        showToast("This feature is available to seller accounts.", "error");
+        return null;
+    }
+
+    return user;
+}
+
+
+function getSellerListingsStorageKey(userId) {
+    return `poultrylink_demo_listings_${String(userId)}`;
+}
+
+
+function getSellerListings(userId) {
+    if (!userId) return [];
+
+    try {
+        const raw = localStorage.getItem(
+            getSellerListingsStorageKey(userId)
+        );
+
+        const listings = JSON.parse(raw || "[]");
+
+        return Array.isArray(listings) ? listings : [];
+    } catch (error) {
+        console.error("Unable to load seller listings:", error);
+        return [];
+    }
+}
+
+
+function saveSellerListings(userId, listings) {
+    if (!userId || !Array.isArray(listings)) {
+        return false;
+    }
+
+    try {
+        localStorage.setItem(
+            getSellerListingsStorageKey(userId),
+            JSON.stringify(listings)
+        );
+
+        return true;
+    } catch (error) {
+        console.error("Unable to save seller listings:", error);
+        return false;
+    }
+}
+
+
+function getSellerListingById(userId, productId) {
+    return getSellerListings(userId).find(
+        (item) => String(item.id) === String(productId)
+    ) || null;
+}
+
+
+function generateDemoId(prefix = "demo") {
+    if (
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+    ) {
+        return `${prefix}-${crypto.randomUUID()}`;
+    }
+
+    return `${prefix}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 9)}`;
+}
+
+
+/* ---------------------------------------------------------
+   2. COMBINE DEMO MARKETPLACE AND SELLER LISTINGS
+   --------------------------------------------------------- */
+
+function getAllMarketplaceProducts() {
+    const user = getCurrentUser();
+
+    if (!user || user.role !== "seller") {
+        return Array.isArray(state.products) ? state.products : [];
+    }
+
+    const ownListings = getSellerListings(user.id);
+
+    const existingIds = new Set(
+        (Array.isArray(state.products) ? state.products : [])
+            .map((product) => String(product.id))
+    );
+
+    const additionalListings = ownListings.filter(
+        (product) => !existingIds.has(String(product.id))
+    );
+
+    return [
+        ...(Array.isArray(state.products) ? state.products : []),
+        ...additionalListings
+    ];
+}
+
+
+function getOwnListingCount() {
+    const user = getCurrentUser();
+
+    if (!user || user.role !== "seller") {
+        return 0;
+    }
+
+    return getSellerListings(user.id).length;
+}
+
+
+function refreshMarketplaceProducts() {
+    const user = getCurrentUser();
+
+    if (!user || user.role !== "seller") {
+        return;
+    }
+
+    const ownListings = getSellerListings(user.id);
+
+    const otherProducts = state.products.filter(
+        (product) => String(product.sellerId) !== String(user.id)
+    );
+
+    state.products = [...otherProducts, ...ownListings];
+
+    renderProducts();
+}
+
+
+/* ---------------------------------------------------------
+   3. STOREFRONT PANEL
+   --------------------------------------------------------- */
+
+function renderStorefrontPanel() {
+    const user = getCurrentUser();
+
+    if (!user || user.role !== "seller") {
+        return renderDashboardPlaceholder(
+            "My storefront",
+            "Log in with a seller account to manage your storefront."
+        );
+    }
+
+    const listings = getSellerListings(user.id);
+
+    const businessName = user.businessName || user.name;
+
+    const verificationStatus =
+        user.verificationStatus || "not_verified";
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>My storefront</h2>
+
+                <p>
+                    Set up the information buyers see about your business.
+                </p>
+            </div>
+
+            <div class="storefront-preview">
+                <div class="storefront-avatar" aria-hidden="true">
+                    ${escapeHTML(
+                        businessName.charAt(0).toUpperCase() || "P"
+                    )}
+                </div>
+
+                <div>
+                    <h3>${escapeHTML(businessName)}</h3>
+
+                    <p>
+                        ${escapeHTML(user.location || "Location not provided")}
+                    </p>
+
+                    <span class="verification-status">
+                        ${
+                            verificationStatus === "verified"
+                                ? "Verified"
+                                : verificationStatus === "pending"
+                                    ? "Verification pending"
+                                    : "Not verified"
+                        }
+                    </span>
+                </div>
+            </div>
+
+            <div class="dashboard-stat-grid">
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Your listings
+                    </span>
+
+                    <strong>${listings.length}</strong>
+                </article>
+
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Account type
+                    </span>
+
+                    <strong>Seller</strong>
+                </article>
+            </div>
+
+            <form id="storefrontForm" class="form-stack">
+                <div class="form-group">
+                    <label for="storeBusinessName">
+                        Business name
+                    </label>
+
+                    <input
+                        id="storeBusinessName"
+                        name="businessName"
+                        type="text"
+                        maxlength="150"
+                        value="${escapeHTML(user.businessName || "")}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="storeDescription">
+                        About your business
+                    </label>
+
+                    <textarea
+                        id="storeDescription"
+                        name="businessDescription"
+                        rows="5"
+                        maxlength="1000"
+                        placeholder="Describe your poultry business, products, and services."
+                    >${escapeHTML(user.businessDescription || "")}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="storeLocation">
+                        Business location
+                    </label>
+
+                    <input
+                        id="storeLocation"
+                        name="location"
+                        type="text"
+                        maxlength="120"
+                        value="${escapeHTML(user.location || "")}"
+                        required
+                    >
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    Save storefront
+                </button>
+            </form>
+
+            <div class="notice notice-warning">
+                Your storefront is stored in this browser.
+                It is not yet publicly published to other users.
+            </div>
+        </section>
+    `;
+}
+
+
+function saveStorefront(formData) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const businessName = String(
+        formData.get("businessName") || ""
+    ).trim();
+
+    const businessDescription = String(
+        formData.get("businessDescription") || ""
+    ).trim();
+
+    const location = String(
+        formData.get("location") || ""
+    ).trim();
+
+    if (!businessName || !location) {
+        showToast(
+            "Business name and location are required.",
+            "error"
+        );
+
+        return;
+    }
+
+    const users = getDemoUsers();
+
+    const userIndex = users.findIndex(
+        (item) => String(item.id) === String(user.id)
+    );
+
+    if (userIndex === -1) {
+        showToast("Unable to find your demo account.", "error");
+        return;
+    }
+
+    users[userIndex] = {
+        ...users[userIndex],
+        businessName,
+        businessDescription,
+        location
+    };
+
+    if (!saveDemoUsers(users)) {
+        showToast("Unable to save storefront details.", "error");
+        return;
+    }
+
+    updateCurrentUser(users[userIndex]);
+
+    showToast("Storefront details saved.");
+
+    renderDashboard();
+}
+
+
+/* ---------------------------------------------------------
+   4. LISTING FORM
+   --------------------------------------------------------- */
+
+function openListingForm(productId = null) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const existing = productId
+        ? getSellerListingById(user.id, productId)
+        : null;
+
+    if (productId && !existing) {
+        showToast("Listing not found in your seller account.", "error");
+        return;
+    }
+
+    const isEditing = Boolean(existing);
+
+    const product = existing || {
+        name: "",
+        category: "Live Birds",
+        price: "",
+        unit: "per bird",
+        stock: "",
+        location: user.location || "",
+        description: "",
+        image: "",
+        status: "active"
+    };
+
+    openModal(
+        isEditing ? "Edit product listing" : "Create product listing",
+        `
+            <form id="sellerListingForm" class="form-stack">
+                <input
+                    type="hidden"
+                    name="productId"
+                    value="${escapeHTML(String(product.id || ""))}"
+                >
+
+                <div class="form-group">
+                    <label for="listingName">
+                        Product name
+                    </label>
+
+                    <input
+                        id="listingName"
+                        name="name"
+                        type="text"
+                        maxlength="150"
+                        value="${escapeHTML(product.name || "")}"
+                        placeholder="e.g. Broiler chickens"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="listingCategory">
+                        Category
+                    </label>
+
+                    <select
+                        id="listingCategory"
+                        name="category"
+                        required
+                    >
+                        ${[
+                            "Live Birds",
+                            "Eggs",
+                            "Day-Old Chicks",
+                            "Poultry Feed",
+                            "Poultry Equipment",
+                            "Processed Chicken",
+                            "Other"
+                        ].map((category) => `
+                            <option
+                                value="${escapeHTML(category)}"
+                                ${
+                                    product.category === category
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                ${escapeHTML(category)}
+                            </option>
+                        `).join("")}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="listingPrice">
+                        Price in Nigerian naira (₦)
+                    </label>
+
+                    <input
+                        id="listingPrice"
+                        name="price"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value="${escapeHTML(String(product.price ?? ""))}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="listingUnit">
+                        Unit
+                    </label>
+
+                    <select id="listingUnit" name="unit" required>
+                        ${[
+                            "per bird",
+                            "per crate",
+                            "per tray",
+                            "per bag",
+                            "per kilogram",
+                            "per item",
+                            "per batch"
+                        ].map((unit) => `
+                            <option
+                                value="${escapeHTML(unit)}"
+                                ${
+                                    product.unit === unit
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                ${escapeHTML(unit)}
+                            </option>
+                        `).join("")}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="listingStock">
+                        Available quantity
+                    </label>
+
+                    <input
+                        id="listingStock"
+                        name="stock"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value="${escapeHTML(String(product.stock ?? ""))}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="listingLocation">
+                        Product location
+                    </label>
+
+                    <input
+                        id="listingLocation"
+                        name="location"
+                        type="text"
+                        maxlength="120"
+                        value="${escapeHTML(product.location || user.location || "")}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="listingImage">
+                        Image URL (optional)
+                    </label>
+
+                    <input
+                        id="listingImage"
+                        name="image"
+                        type="url"
+                        maxlength="1000"
+                        value="${escapeHTML(product.image || "")}"
+                        placeholder="https://example.com/product.jpg"
+                    >
+
+                    <p class="form-helper">
+                        Use an image URL that you are authorised to use.
+                        This demo does not upload image files.
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label for="listingDescription">
+                        Product description
+                    </label>
+
+                    <textarea
+                        id="listingDescription"
+                        name="description"
+                        rows="4"
+                        maxlength="1500"
+                        required
+                    >${escapeHTML(product.description || "")}</textarea>
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-full"
+                >
+                    ${isEditing ? "Save changes" : "Create demo listing"}
+                </button>
+            </form>
+        `,
+        "SELLER MARKETPLACE"
+    );
+}
+
+
+/* ---------------------------------------------------------
+   5. CREATE OR UPDATE LISTING
+   --------------------------------------------------------- */
+
+function saveSellerListing(formData) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const productId = String(
+        formData.get("productId") || ""
+    ).trim();
+
+    const name = String(
+        formData.get("name") || ""
+    ).trim();
+
+    const category = String(
+        formData.get("category") || ""
+    ).trim();
+
+    const price = Number(formData.get("price"));
+    const stock = Number(formData.get("stock"));
+
+    const unit = String(
+        formData.get("unit") || ""
+    ).trim();
+
+    const location = String(
+        formData.get("location") || ""
+    ).trim();
+
+    const image = String(
+        formData.get("image") || ""
+    ).trim();
+
+    const description = String(
+        formData.get("description") || ""
+    ).trim();
+
+    if (
+        !name ||
+        !category ||
+        !unit ||
+        !location ||
+        !description
+    ) {
+        showToast("Complete all required listing fields.", "error");
+        return;
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+        showToast("Enter a valid product price.", "error");
+        return;
+    }
+
+    if (
+        !Number.isFinite(stock) ||
+        stock < 0 ||
+        !Number.isInteger(stock)
+    ) {
+        showToast(
+            "Stock must be a whole number of zero or greater.",
+            "error"
+        );
+
+        return;
+    }
+
+    if (image) {
+        try {
+            const imageUrl = new URL(image);
+
+            if (!["http:", "https:"].includes(imageUrl.protocol)) {
+                showToast(
+                    "The image URL must use HTTP or HTTPS.",
+                    "error"
+                );
+
+                return;
+            }
+        } catch {
+            showToast("Enter a valid image URL.", "error");
+            return;
+        }
+    }
+
+    const listings = getSellerListings(user.id);
+
+    let updatedListing;
+
+    if (productId) {
+        const index = listings.findIndex(
+            (item) => String(item.id) === productId
+        );
+
+        if (index === -1) {
+            showToast("Listing not found.", "error");
+            return;
+        }
+
+        updatedListing = {
+            ...listings[index],
+            name,
+            category,
+            price,
+            unit,
+            stock,
+            location,
+            image,
+            description,
+            updatedAt: new Date().toISOString()
+        };
+
+        listings[index] = updatedListing;
+
+    } else {
+        updatedListing = {
+            id: generateDemoId("listing"),
+            sellerId: user.id,
+            seller: user.businessName || user.name,
+            name,
+            category,
+            price,
+            unit,
+            stock,
+            location,
+            image,
+            description,
+            status: "active",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        listings.push(updatedListing);
+    }
+
+    if (!saveSellerListings(user.id, listings)) {
+        showToast("Unable to save this listing.", "error");
+        return;
+    }
+
+    /*
+     * Add or update this listing in the current browser's marketplace
+     * data. This does not publish the listing to other users.
+     */
+
+    const productIndex = state.products.findIndex(
+        (item) => String(item.id) === String(updatedListing.id)
+    );
+
+    if (productIndex >= 0) {
+        state.products[productIndex] = updatedListing;
+    } else {
+        state.products.push(updatedListing);
+    }
+
+    closeModal();
+
+    renderProducts();
+    renderDashboard();
+
+    showToast(
+        productId
+            ? "Listing updated successfully."
+            : "Demo listing created successfully."
+    );
+}
+
+
+/* ---------------------------------------------------------
+   6. SELLER LISTINGS PANEL
+   --------------------------------------------------------- */
+
+function renderSellerListingsPanel() {
+    const user = getCurrentUser();
+
+    if (!user || user.role !== "seller") {
+        return renderDashboardPlaceholder(
+            "My listings",
+            "Log in with a seller account to manage listings."
+        );
+    }
+
+    const listings = getSellerListings(user.id);
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>My listings</h2>
+
+                <p>
+                    Create and manage the poultry products you offer.
+                </p>
+            </div>
+
+            <div class="dashboard-toolbar">
+                <span>
+                    ${listings.length}
+                    listing${listings.length === 1 ? "" : "s"}
+                </span>
+
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    data-action="create-listing"
+                >
+                    + Add product
+                </button>
+            </div>
+
+            ${
+                listings.length
+                    ? `
+                        <div class="seller-listings-list">
+                            ${listings.map((product) => `
+                                <article class="seller-listing-card">
+                                    <div class="seller-listing-image">
+                                        ${productImageMarkup(product)}
+                                    </div>
+
+                                    <div class="seller-listing-details">
+                                        <h3>
+                                            ${escapeHTML(product.name)}
+                                        </h3>
+
+                                        <p>
+                                            ${escapeHTML(product.category)}
+                                        </p>
+
+                                        <strong>
+                                            ${formatNaira(Number(product.price) || 0)}
+                                            ${escapeHTML(product.unit || "")}
+                                        </strong>
+
+                                        <p>
+                                            Stock:
+                                            ${getProductStock(product)}
+                                        </p>
+
+                                        <div class="seller-listing-actions">
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline btn-small"
+                                                data-action="edit-listing"
+                                                data-product-id="${escapeHTML(String(product.id))}"
+                                            >
+                                                Edit
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline btn-small"
+                                                data-action="edit-inventory"
+                                                data-product-id="${escapeHTML(String(product.id))}"
+                                            >
+                                                Update stock
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                class="btn btn-danger btn-small"
+                                                data-action="delete-listing"
+                                                data-product-id="${escapeHTML(String(product.id))}"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </article>
+                            `).join("")}
+                        </div>
+                    `
+                    : `
+                        <div class="empty-state">
+                            <h3>No products listed</h3>
+
+                            <p>
+                                Add your first product to get started.
+                            </p>
+
+                            <button
+                                type="button"
+                                class="btn btn-primary"
+                                data-action="create-listing"
+                            >
+                                Create your first listing
+                            </button>
+                        </div>
+                    `
+            }
+
+            <div class="notice notice-warning">
+                Listings are currently stored in this browser only.
+                They are not visible to other customers or sellers.
+            </div>
+        </section>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   7. DELETE LISTING
+   --------------------------------------------------------- */
+
+function deleteSellerListing(productId) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const listings = getSellerListings(user.id);
+
+    const listing = listings.find(
+        (item) => String(item.id) === String(productId)
+    );
+
+    if (!listing) {
+        showToast("Listing not found.", "error");
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Delete "${listing.name}" from your demo listings?`
+    );
+
+    if (!confirmed) return;
+
+    const updatedListings = listings.filter(
+        (item) => String(item.id) !== String(productId)
+    );
+
+    if (!saveSellerListings(user.id, updatedListings)) {
+        showToast("Unable to delete this listing.", "error");
+        return;
+    }
+
+    state.products = state.products.filter(
+        (item) => String(item.id) !== String(productId)
+    );
+
+    state.cart = getCartItems().filter(
+        (item) => String(item.productId) !== String(productId)
+    );
+
+    state.savedIds = getSavedProductIds().filter(
+        (id) => id !== String(productId)
+    );
+
+    persistCart();
+    persistSavedProducts();
+
+    updateCartCount();
+    updateSavedCount();
+
+    renderProducts();
+    renderDashboard();
+
+    showToast("Demo listing deleted.");
+}
+
+
+/* ---------------------------------------------------------
+   8. INVENTORY MANAGEMENT
+   --------------------------------------------------------- */
+
+function openInventoryForm(productId) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const product = getSellerListingById(user.id, productId);
+
+    if (!product) {
+        showToast("Listing not found.", "error");
+        return;
+    }
+
+    openModal(
+        "Update inventory",
+        `
+            <form id="inventoryForm" class="form-stack">
+                <input
+                    type="hidden"
+                    name="productId"
+                    value="${escapeHTML(String(product.id))}"
+                >
+
+                <div class="form-group">
+                    <label>Product</label>
+
+                    <input
+                        type="text"
+                        value="${escapeHTML(product.name)}"
+                        disabled
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="inventoryStock">
+                        Available quantity
+                    </label>
+
+                    <input
+                        id="inventoryStock"
+                        name="stock"
+                        type="number"
+                        min="0"
+                        step="1"
+                        value="${getProductStock(product)}"
+                        required
+                    >
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-full"
+                >
+                    Save inventory
+                </button>
+            </form>
+        `,
+        "INVENTORY"
+    );
+}
+
+
+function saveInventory(formData) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const productId = String(
+        formData.get("productId") || ""
+    );
+
+    const stock = Number(formData.get("stock"));
+
+    if (
+        !Number.isInteger(stock) ||
+        !Number.isFinite(stock) ||
+        stock < 0
+    ) {
+        showToast(
+            "Enter a valid whole-number stock quantity.",
+            "error"
+        );
+
+        return;
+    }
+
+    const listings = getSellerListings(user.id);
+
+    const index = listings.findIndex(
+        (item) => String(item.id) === productId
+    );
+
+    if (index === -1) {
+        showToast("Listing not found.", "error");
+        return;
+    }
+
+    listings[index] = {
+        ...listings[index],
+        stock,
+        updatedAt: new Date().toISOString()
+    };
+
+    if (!saveSellerListings(user.id, listings)) {
+        showToast("Unable to update inventory.", "error");
+        return;
+    }
+
+    const marketplaceIndex = state.products.findIndex(
+        (item) => String(item.id) === productId
+    );
+
+    if (marketplaceIndex >= 0) {
+        state.products[marketplaceIndex] = listings[index];
+    } else {
+        state.products.push(listings[index]);
+    }
+
+    /*
+     * Remove cart quantities that exceed the updated stock.
+     */
+
+    state.cart = getCartItems()
+        .map((item) => {
+            if (String(item.productId) !== productId) {
+                return item;
+            }
+
+            return {
+                ...item,
+                quantity: Math.min(
+                    Number(item.quantity) || 0,
+                    stock
+                )
+            };
+        })
+        .filter((item) => Number(item.quantity) > 0);
+
+    persistCart();
+    updateCartCount();
+
+    closeModal();
+
+    renderProducts();
+    renderDashboard();
+
+    showToast("Inventory updated.");
+}
+
+
+/* ---------------------------------------------------------
+   9. INVENTORY DASHBOARD PANEL
+   --------------------------------------------------------- */
+
+function renderInventoryPanel() {
+    const user = getCurrentUser();
+
+    if (!user || user.role !== "seller") {
+        return renderDashboardPlaceholder(
+            "Inventory",
+            "Log in with a seller account to manage stock."
+        );
+    }
+
+    const listings = getSellerListings(user.id);
+
+    const totalUnits = listings.reduce(
+        (sum, product) => sum + getProductStock(product),
+        0
+    );
+
+    return `
+        <section class="dashboard-panel">
+            <div class="dashboard-section-heading">
+                <h2>Inventory</h2>
+
+                <p>
+                    Review stock quantities for your products.
+                </p>
+            </div>
+
+            <div class="dashboard-stat-grid">
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Products
+                    </span>
+
+                    <strong>${listings.length}</strong>
+                </article>
+
+                <article class="dashboard-stat-card">
+                    <span class="dashboard-stat-label">
+                        Total listed units
+                    </span>
+
+                    <strong>${totalUnits}</strong>
+                </article>
+            </div>
+
+            ${
+                listings.length
+                    ? `
+                        <div class="inventory-list">
+                            ${listings.map((product) => `
+                                <article class="inventory-row">
+                                    <div>
+                                        <h3>
+                                            ${escapeHTML(product.name)}
+                                        </h3>
+
+                                        <p>
+                                            ${escapeHTML(product.category)}
+                                        </p>
+                                    </div>
+
+                                    <div class="inventory-stock">
+                                        <strong>
+                                            ${getProductStock(product)}
+                                        </strong>
+
+                                        <span>in stock</span>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        class="btn btn-outline btn-small"
+                                        data-action="edit-inventory"
+                                        data-product-id="${escapeHTML(String(product.id))}"
+                                    >
+                                        Update
+                                    </button>
+                                </article>
+                            `).join("")}
+                        </div>
+                    `
+                    : `
+                        <div class="empty-state">
+                            <h3>No inventory yet</h3>
+
+                            <p>
+                                Create a product listing to begin tracking stock.
+                            </p>
+
+                            <button
+                                type="button"
+                                class="btn btn-primary"
+                                data-action="create-listing"
+                            >
+                                Add product
+                            </button>
+                        </div>
+                    `
+            }
+        </section>
+    `;
+}
+
+
+/* ---------------------------------------------------------
+   10. SELLER VERIFICATION APPLICATION
+   --------------------------------------------------------- */
+
+function openVerificationForm() {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const currentStatus =
+        user.verificationStatus || "not_verified";
+
+    if (currentStatus === "pending") {
+        openModal(
+            "Verification application",
+            `
+                <div class="notice notice-warning">
+                    Your demo application is marked as pending.
+                    This status does not mean that your identity
+                    has been reviewed by POULTRYLINK.
+                </div>
+
+                <p>
+                    A production verification workflow would require
+                    secure document submission and review by an
+                    authorised administrator.
+                </p>
+            `,
+            "SELLER VERIFICATION"
+        );
+
+        return;
+    }
+
+    openModal(
+        "Apply for seller verification",
+        `
+            <div class="notice notice-warning">
+                <strong>Demonstration only:</strong>
+                This form records a local application status.
+                It does not verify your identity or award a genuine
+                verification badge.
+            </div>
+
+            <form id="verificationForm" class="form-stack">
+                <div class="form-group">
+                    <label for="verificationBusinessName">
+                        Business name
+                    </label>
+
+                    <input
+                        id="verificationBusinessName"
+                        name="businessName"
+                        type="text"
+                        maxlength="150"
+                        value="${escapeHTML(user.businessName || user.name)}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="verificationLocation">
+                        Business location
+                    </label>
+
+                    <input
+                        id="verificationLocation"
+                        name="location"
+                        type="text"
+                        maxlength="120"
+                        value="${escapeHTML(user.location || "")}"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="verificationDescription">
+                        Tell us about your business
+                    </label>
+
+                    <textarea
+                        id="verificationDescription"
+                        name="description"
+                        rows="4"
+                        maxlength="1000"
+                        required
+                    >${escapeHTML(user.businessDescription || "")}</textarea>
+                </div>
+
+                <p class="form-helper">
+                    Do not enter identity document numbers, banking
+                    details, passwords, or other sensitive information
+                    into this demonstration form.
+                </p>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-full"
+                >
+                    Save demo application
+                </button>
+            </form>
+        `,
+        "SELLER VERIFICATION"
+    );
+}
+
+
+function saveVerificationApplication(formData) {
+    const user = requireSellerAccount();
+
+    if (!user) return;
+
+    const businessName = String(
+        formData.get("businessName") || ""
+    ).trim();
+
+    const location = String(
+        formData.get("location") || ""
+    ).trim();
+
+    const description = String(
+        formData.get("description") || ""
+    ).trim();
+
+    if (!businessName || !location || !description) {
+        showToast("Complete all required fields.", "error");
+        return;
+    }
+
+    const users = getDemoUsers();
+
+    const index = users.findIndex(
+        (item) => String(item.id) === String(user.id)
+    );
+
+    if (index === -1) {
+        showToast("Unable to find your demo account.", "error");
+        return;
+    }
+
+    users[index] = {
+        ...users[index],
+        businessName,
+        location,
+        businessDescription: description,
+        verificationStatus: "pending",
+        verificationApplicationAt: new Date().toISOString()
+    };
+
+    if (!saveDemoUsers(users)) {
+        showToast(
+            "Unable to save your demo verification application.",
+            "error"
+        );
+
+        return;
+    }
+
+    updateCurrentUser(users[index]);
+
+    closeModal();
+
+    renderDashboard();
+
+    showToast(
+        "Demo application saved. No real verification has occurred."
+    );
+}
+
+
+/* ---------------------------------------------------------
+   11. SELLER DIRECTORY
+   --------------------------------------------------------- */
+
+function getAllDirectorySellers() {
+    const directory = new Map();
+
+    (Array.isArray(state.sellers) ? state.sellers : [])
+        .forEach((seller) => {
+            directory.set(String(seller.id), seller);
+        });
+
+    getDemoUsers()
+        .filter((user) => user.role === "seller")
+        .forEach((user) => {
+            directory.set(String(user.id), {
+                id: user.id,
+                name: user.businessName || user.name,
+                location: user.location || "Location not provided",
+                description: user.businessDescription || "",
+                verificationStatus: user.verificationStatus || "not_verified",
+                isDemoAccount: true
+            });
+        });
+
+    return [...directory.values()];
+}
+
+
+function renderSellerDirectory() {
+    const container = document.getElementById("sellerGrid");
+
+    if (!container) return;
+
+    const sellers = getAllDirectorySellers();
+
+    if (!sellers.length) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <h3>No sellers to display</h3>
+
+                <p>
+                    Seller profiles will appear here when available.
+                </p>
+            </div>
+        `;
+
+        return;
+    }
+
+    container.innerHTML = sellers.map((seller) => {
+        const isVerified =
+            seller.verificationStatus === "verified";
+
+        return `
+            <article class="seller-card">
+                <div class="seller-card-avatar" aria-hidden="true">
+                    ${escapeHTML(
+                        String(seller.name || "P")
+                            .charAt(0)
+                            .toUpperCase()
+                    )}
+                </div>
+
+                <div class="seller-card-content">
+                    <h3>${escapeHTML(seller.name || "Poultry seller")}</h3>
+
+                    <p>
+                        ${escapeHTML(seller.location || "Nigeria")}
+                    </p>
+
+                    ${
+                        seller.description
+                            ? `
+                                <p class="seller-card-description">
+                                    ${escapeHTML(seller.description)}
+                                </p>
+                            `
+                            : ""
+                    }
+
+                    ${
+                        isVerified
+                            ? `
+                                <span class="verification-badge">
+                                    Verified
+                                </span>
+                            `
+                            : `
+                                <span class="verification-status">
+                                    Not verified
+                                </span>
+                            `
+                    }
+
+                    ${
+                        seller.isDemoAccount
+                            ? `
+                                <p class="form-helper">
+                                    Demo seller profile
+                                </p>
+                            `
+                            : ""
+                    }
+                </div>
+            </article>
+        `;
+    }).join("");
+}
+
+
+/* ---------------------------------------------------------
+   12. DASHBOARD RENDERER INTEGRATION
+   --------------------------------------------------------- */
+
+const previousGetDashboardContent = getDashboardContent;
+
+getDashboardContent = function (tabId) {
+    switch (tabId) {
+        case "storefront":
+            return renderStorefrontPanel();
+
+        case "listings":
+            return renderSellerListingsPanel();
+
+        case "inventory":
+            return renderInventoryPanel();
+
+        default:
+            return previousGetDashboardContent(tabId);
+    }
+};
+
+
+/* ---------------------------------------------------------
+   13. LISTING, INVENTORY AND STOREFRONT EVENTS
+   --------------------------------------------------------- */
+
+function initializeSellerManagementActions() {
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-action]");
+
+        if (!button) return;
+
+        const action = button.dataset.action;
+        const productId = button.dataset.productId;
+
+        switch (action) {
+            case "create-listing":
+                openListingForm();
+                break;
+
+            case "edit-listing":
+                if (productId) {
+                    openListingForm(productId);
+                }
+                break;
+
+            case "delete-listing":
+                if (productId) {
+                    deleteSellerListing(productId);
+                }
+                break;
+
+            case "edit-inventory":
+                if (productId) {
+                    openInventoryForm(productId);
+                }
+                break;
+
+            case "open-verification":
+                openVerificationForm();
+                break;
+
+            default:
+                break;
+        }
+    });
+
+    document.addEventListener("submit", (event) => {
+        const form = event.target;
+
+        if (form.id === "sellerListingForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            saveSellerListing(new FormData(form));
+        }
+
+        if (form.id === "inventoryForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            saveInventory(new FormData(form));
+        }
+
+        if (form.id === "storefrontForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            saveStorefront(new FormData(form));
+        }
+
+        if (form.id === "verificationForm") {
+            event.preventDefault();
+
+            if (!form.reportValidity()) return;
+
+            saveVerificationApplication(new FormData(form));
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   14. INITIALISE CHUNK 4
+   --------------------------------------------------------- */
+
+initializeSellerManagementActions();
+renderSellerDirectory();
+
+/* END OF CHUNK 4 */
+
+
+/* =========================================================
+   POULTRYLINK — APP.JS
+   CHUNK 5 OF 5
+   FINAL INTEGRATION, NAVIGATION & APPLICATION INITIALISATION
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   1. SAFE ELEMENT HELPERS
+   --------------------------------------------------------- */
+
+function getElement(id) {
+    return document.getElementById(id);
+}
+
+
+function scrollToSection(sectionId) {
+    const section = getElement(sectionId);
+
+    if (!section) {
+        showToast("That section is not available.", "error");
+        return;
+    }
+
+    section.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+}
+
+
+/* ---------------------------------------------------------
+   2. MAIN NAVIGATION
+   --------------------------------------------------------- */
+
+function initializeMainNavigation() {
+    document.addEventListener("click", (event) => {
+        const link = event.target.closest("a[href^='#']");
+
+        if (!link) return;
+
+        const href = link.getAttribute("href");
+
+        if (!href || href === "#") {
+            event.preventDefault();
+            return;
+        }
+
+        const targetId = href.slice(1);
+
+        if (!targetId) return;
+
+        const target = getElement(targetId);
+
+        if (target) {
+            event.preventDefault();
+
+            closeDashboard();
+            closeModal();
+
+            scrollToSection(targetId);
+
+            const navLinks = document.querySelectorAll(
+                ".nav-link, .mobile-nav-link"
+            );
+
+            navLinks.forEach((navLink) => {
+                navLink.classList.toggle(
+                    "active",
+                    navLink === link
+                );
+            });
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   3. MOBILE NAVIGATION
+   --------------------------------------------------------- */
+
+function initializeMobileNavigation() {
+    const menuButton =
+        getElement("mobileMenuButton") ||
+        getElement("menuToggle");
+
+    const navigation =
+        getElement("mobileNavigation") ||
+        getElement("mobileNav");
+
+    if (!menuButton || !navigation) {
+        return;
+    }
+
+    menuButton.setAttribute("aria-expanded", "false");
+
+    menuButton.addEventListener("click", () => {
+        const isOpen =
+            menuButton.getAttribute("aria-expanded") === "true";
+
+        menuButton.setAttribute(
+            "aria-expanded",
+            String(!isOpen)
+        );
+
+        navigation.hidden = isOpen;
+
+        navigation.classList.toggle("is-open", !isOpen);
+    });
+
+    navigation.addEventListener("click", (event) => {
+        const link = event.target.closest("a");
+
+        if (!link) return;
+
+        navigation.hidden = true;
+        navigation.classList.remove("is-open");
+
+        menuButton.setAttribute("aria-expanded", "false");
+    });
+}
+
+
+/* ---------------------------------------------------------
+   4. HEADER CART AND SAVED-PRODUCT BUTTONS
+   --------------------------------------------------------- */
+
+function initializeHeaderShoppingButtons() {
+    document.addEventListener("click", (event) => {
+        const cartButton = event.target.closest(
+            "[data-open-cart], #cartButton, #cartIconButton"
+        );
+
+        if (cartButton) {
+            event.preventDefault();
+            openCart();
+            return;
+        }
+
+        const savedButton = event.target.closest(
+            "[data-open-saved], #savedButton, #wishlistButton"
+        );
+
+        if (savedButton) {
+            event.preventDefault();
+            openSavedProducts();
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   5. HERO AND MARKETPLACE SEARCH
+   --------------------------------------------------------- */
+
+function initializeHeroSearch() {
+    const searchForm =
+        getElement("heroSearchForm") ||
+        getElement("searchForm");
+
+    const searchInput =
+        getElement("heroSearchInput") ||
+        getElement("searchInput") ||
+        getElement("productSearch");
+
+    if (!searchForm || !searchInput) {
+        return;
+    }
+
+    searchForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+
+        const searchValue = String(
+            searchInput.value || ""
+        ).trim();
+
+        /*
+         * The marketplace controls from Chunk 1 use the shared
+         * state.search value. Update it and refresh the product grid.
+         */
+
+        if (typeof state !== "undefined") {
+            state.search = searchValue;
+        }
+
+        if (typeof renderProducts === "function") {
+            renderProducts();
+        }
+
+        scrollToSection("marketplace");
+    });
+}
+
+
+/* ---------------------------------------------------------
+   6. CATEGORY SHORTCUTS
+   --------------------------------------------------------- */
+
+function initializeCategoryShortcuts() {
+    document.addEventListener("click", (event) => {
+        const categoryButton = event.target.closest(
+            "[data-category-shortcut]"
+        );
+
+        if (!categoryButton) return;
+
+        const category = categoryButton.dataset.categoryShortcut;
+
+        if (!category) return;
+
+        if (typeof state !== "undefined") {
+            state.category = category;
+        }
+
+        const categorySelect =
+            getElement("categoryFilter") ||
+            getElement("categorySelect");
+
+        if (categorySelect) {
+            categorySelect.value = category;
+        }
+
+        if (typeof renderProducts === "function") {
+            renderProducts();
+        }
+
+        scrollToSection("marketplace");
+    });
+}
+
+
+/* ---------------------------------------------------------
+   7. SELLER DIRECTORY REFRESH
+   --------------------------------------------------------- */
+
+function refreshSellerDirectory() {
+    if (typeof renderSellerDirectory === "function") {
+        renderSellerDirectory();
+    }
+}
+
+
+/* ---------------------------------------------------------
+   8. DASHBOARD HEADER INFORMATION
+   --------------------------------------------------------- */
+
+function refreshDashboardHeader() {
+    const user = getCurrentUser();
+
+    const nameElement = getElement("dashboardUserName");
+    const roleElement = getElement("dashboardUserRole");
+
+    if (nameElement) {
+        nameElement.textContent = user ? user.name : "Guest";
+    }
+
+    if (roleElement) {
+        roleElement.textContent = user
+            ? (
+                user.role === "seller"
+                    ? "Seller account"
+                    : "Buyer account"
+            )
+            : "";
+    }
+}
+
+
+/* ---------------------------------------------------------
+   9. MARKETPLACE EMPTY-STATE FALLBACK
+   --------------------------------------------------------- */
+
+function ensureMarketplaceEmptyState() {
+    const grid = getElement("productGrid");
+
+    if (!grid) {
+        console.warn(
+            "POULTRYLINK: Product grid element #productGrid was not found."
+        );
+
+        return;
+    }
+
+    /*
+     * Product rendering is handled by renderProducts() from Chunk 1.
+     * This function deliberately does not overwrite the grid.
+     */
+
+    if (
+        Array.isArray(state.products) &&
+        state.products.length === 0 &&
+        grid.children.length === 0
+    ) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <h3>No products available yet</h3>
+
+                <p>
+                    Products will appear here when they are added
+                    to the marketplace.
+                </p>
+            </div>
+        `;
+    }
+}
+
+
+/* ---------------------------------------------------------
+   10. LOCAL DEMO DATA STATUS
+   --------------------------------------------------------- */
+
+function showDemoModeNotice() {
+    const notice = getElement("demoModeNotice");
+
+    if (notice) {
+        notice.hidden = false;
+    }
+}
+
+
+/* ---------------------------------------------------------
+   11. GLOBAL BUTTON FALLBACKS
+   --------------------------------------------------------- */
+
+function initializeGlobalActions() {
+    document.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-scroll-to]");
+
+        if (!button) return;
+
+        const sectionId = button.dataset.scrollTo;
+
+        if (sectionId) {
+            scrollToSection(sectionId);
+        }
+    });
+}
+
+
+/* ---------------------------------------------------------
+   12. REFRESH UI AFTER LOGIN OR LOGOUT
+   --------------------------------------------------------- */
+
+function refreshApplicationInterface() {
+    updateAccountInterface();
+    updateCartCount();
+    updateSavedCount();
+    refreshDashboardHeader();
+    refreshSellerDirectory();
+
+    if (typeof renderProducts === "function") {
+        renderProducts();
+    }
+}
+
+
+/* ---------------------------------------------------------
+   13. APPLICATION HEALTH CHECK
+   --------------------------------------------------------- */
+
+function checkRequiredElements() {
+    const requiredElements = [
+        "productGrid",
+        "modalBackdrop",
+        "modalTitle",
+        "modalBody",
+        "modalClose",
+        "dashboardDrawer",
+        "dashboardNav",
+        "dashboardContent"
+    ];
+
+    const missingElements = requiredElements.filter(
+        (id) => !getElement(id)
+    );
+
+    if (missingElements.length > 0) {
+        console.warn(
+            "POULTRYLINK: Some expected HTML elements are missing:",
+            missingElements.join(", ")
+        );
+
+        return false;
+    }
+
+    return true;
+}
+
+
+/* ---------------------------------------------------------
+   14. FINAL APPLICATION INITIALISATION
+   --------------------------------------------------------- */
+
+function initializePoultryLinkApp() {
+    console.info("POULTRYLINK: Initialising application...");
+
+    /*
+     * The first four chunks already initialise:
+     * - Marketplace controls
+     * - Demo marketplace data
+     * - Product modals and cart
+     * - Demo accounts
+     * - Seller management
+     *
+     * This section connects the remaining interface elements.
+     */
+
+    initializeMainNavigation();
+    initializeMobileNavigation();
+    initializeHeaderShoppingButtons();
+    initializeHeroSearch();
+    initializeCategoryShortcuts();
+    initializeGlobalActions();
+
+    restoreDemoSession();
+
+    initializeShoppingStorage();
+
+    refreshApplicationInterface();
+
+    ensureMarketplaceEmptyState();
+
+    showDemoModeNotice();
+
+    const healthy = checkRequiredElements();
+
+    if (healthy) {
+        console.info(
+            "POULTRYLINK: Expected HTML elements were found."
+        );
+    } else {
+        console.warn(
+            "POULTRYLINK: Review the HTML IDs listed above."
+        );
+    }
+
+    console.info(
+        "POULTRYLINK: Demo frontend initialisation complete."
+    );
+}
+
+
+/* ---------------------------------------------------------
+   15. START APPLICATION
+   --------------------------------------------------------- */
+
+if (document.readyState === "loading") {
+    document.addEventListener(
+        "DOMContentLoaded",
+        initializePoultryLinkApp,
+        { once: true }
+    );
+} else {
+    initializePoultryLinkApp();
+}
+
+/* =========================================================
+   END OF CHUNK 5
+   END OF POULTRYLINK APP.JS
+   ========================================================= */
