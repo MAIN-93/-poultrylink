@@ -1,3 +1,6 @@
+import { auth, db } from "./firebase.js";
+
+
 /* =========================================================
    POULTRYLINK — NIGERIA'S POULTRY MARKETPLACE
    File: app.js
