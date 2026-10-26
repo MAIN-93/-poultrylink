@@ -1,720 +1,361 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#176b3a">
-  <meta name="description" content="PoultryLink — Nigeria's Poultry Marketplace. Discover poultry products and connect with sellers.">
-
-  <title>PoultryLink — Nigeria's Poultry Marketplace</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta
+    name="description"
+    content="POULTRYLINK connects poultry farmers, sellers and buyers across Nigeria."
+>
+<meta name="theme-color" content="#14532d">
+<title>POULTRYLINK | Nigeria's Poultry Marketplace</title>
+<!-- Connect the CSS stylesheet -->
+<link rel="stylesheet" href="styles.css">
+<!-- Load JavaScript as a module -->
+<script type="module" src="app.js"></script>
 </head>
-
 <body>
-
-  <!-- Announcement bar -->
-  <div class="announcement">
-    🌿 Connecting Nigeria’s poultry industry — farm to marketplace
-  </div>
-
-  <!-- Main navigation -->
-  <header class="site-header">
-
-    <a class="brand" href="#home" aria-label="PoultryLink home">
-      <span class="brand-mark">P<span>+</span></span>
-
-      <span class="brand-copy">
-        Poultry<span>Link</span>
-        <small>NIGERIA'S POULTRY MARKETPLACE</small>
-      </span>
-    </a>
-
-    <button
-      class="icon-button menu-toggle"
-      id="menuToggle"
-      aria-label="Open navigation"
-      aria-expanded="false">
-      ☰
-    </button>
-
-    <nav class="main-nav" id="mainNav">
-      <a href="#marketplace">Marketplace</a>
-      <a href="#categories">Categories</a>
-      <a href="#sellers">Sellers</a>
-      <a href="#how-it-works">How it works</a>
-    </nav>
-
-    <div class="header-actions">
-
-      <button class="text-button" id="savedHeaderBtn">
-        ♡ <span class="desktop-label">Saved</span>
-      </button>
-
-      <button class="text-button cart-trigger" id="cartHeaderBtn">
-        🛒 <span class="desktop-label">Cart</span>
-        <b id="cartCount">0</b>
-      </button>
-
-      <button class="button button-outline" id="signInBtn">
-        Sign in
-      </button>
-
-      <button class="button button-primary" id="sellHeaderBtn">
-        Start selling
-      </button>
-
-      <button
-        class="avatar-button hidden"
-        id="accountBtn"
-        aria-label="Open dashboard">
-        👤
-      </button>
-
-    </div>
-  </header>
-
-  <main id="home">
-
-    <!-- Hero section -->
-    <section class="hero">
-
-      <div class="hero-content">
-
-        <div class="eyebrow">
-          <span class="eyebrow-dot"></span>
-          NIGERIA’S POULTRY MARKETPLACE
-        </div>
-
-        <h1>
-          Good business<br>
-          starts <em>at the farm.</em>
-        </h1>
-
-        <p>
-          Find quality poultry products, connect directly with sellers,
-          and grow your poultry business — all in one place.
-        </p>
-
-        <div class="hero-actions">
-          <a class="button button-gold" href="#marketplace">
-            Explore marketplace <span>↗</span>
-          </a>
-
-          <button class="button button-light" id="heroSellBtn">
-            Become a seller <span>→</span>
-          </button>
-        </div>
-
-        <div class="hero-trust">
-          <div class="trust-avatars">
-            <span>🐔</span>
-            <span>🌾</span>
-            <span>🥚</span>
-          </div>
-
-          <div>
-            <strong>Built for poultry people</strong>
-            <small>Farmers · Sellers · Buyers</small>
-          </div>
-        </div>
-
-      </div>
-
-      <div class="hero-art" aria-label="Illustration of poultry products">
-
-        <div class="art-orbit orbit-one"></div>
-        <div class="art-orbit orbit-two"></div>
-
-        <div class="art-card art-card-top">
-          <span>🌾</span>
-          <div>
-            <strong>Feed & supplies</strong>
-            <small>Stock up with confidence</small>
-          </div>
-        </div>
-
-        <div class="chicken-illustration">
-          <div class="sun"></div>
-          <div class="leaf leaf-one"></div>
-          <div class="leaf leaf-two"></div>
-          <div class="hen">🐔</div>
-          <div class="egg-basket">🥚 🥚 🥚</div>
-        </div>
-
-        <div class="art-card art-card-bottom">
-          <span class="check-badge">✓</span>
-          <div>
-            <strong>Closer connections</strong>
-            <small>Buy and sell directly</small>
-          </div>
-        </div>
-
-        <span class="floating-egg">🥚</span>
-        <span class="floating-leaf">✦</span>
-
-      </div>
-    </section>
-
-    <!-- Marketplace search -->
-    <section class="search-wrap" aria-label="Search marketplace">
-
-      <div class="search-intro">
-        <span class="search-icon">⌕</span>
-
-        <div>
-          <strong>What are you looking for?</strong>
-          <small>Search products from poultry sellers</small>
-        </div>
-      </div>
-
-      <form id="searchForm" class="search-form">
-
-        <label class="sr-only" for="searchInput">
-          Search products
-        </label>
-
-        <input
-          id="searchInput"
-          type="search"
-          placeholder="Try “broiler”, “eggs” or “feed”">
-
-        <label class="sr-only" for="categorySearch">
-          Category
-        </label>
-
-        <select id="categorySearch">
-          <option value="all">All categories</option>
-          <option>Eggs</option>
-          <option>Layers</option>
-          <option>Broilers</option>
-          <option>Poultry Feed</option>
-          <option>Equipment</option>
-          <option>Other</option>
-        </select>
-
-        <button class="button button-primary" type="submit">
-          Search products
-        </button>
-
-      </form>
-    </section>
-
-    <!-- Product categories -->
-    <section class="section category-section" id="categories">
-
-      <div class="section-heading">
-
-        <div>
-          <span class="eyebrow">SHOP BY CATEGORY</span>
-          <h2>Find what your farm needs</h2>
-        </div>
-
-        <a class="inline-link" href="#marketplace">
-          View all products <span>→</span>
+<!-- ANNOUNCEMENT BAR -->
+<div class="announcement-bar">
+    <p>Connecting Nigeria's poultry community.</p>
+</div>
+<!-- HEADER -->
+<header class="site-header">
+    <div class="container header-content">
+        <a href="#home" class="brand" aria-label="POULTRYLINK home">
+            <span class="brand-icon">🐔</span>
+            <span class="brand-name">POULTRY<span>LINK</span></span>
         </a>
-
-      </div>
-
-      <div class="category-grid">
-
-        <button class="category-card" data-category="Eggs">
-          <span class="category-emoji egg-bg">🥚</span>
-          <strong>Eggs</strong>
-          <small>Fresh farm eggs</small>
-        </button>
-
-        <button class="category-card" data-category="Layers">
-          <span class="category-emoji layer-bg">🐔</span>
-          <strong>Layers</strong>
-          <small>Ready-to-lay birds</small>
-        </button>
-
-        <button class="category-card" data-category="Broilers">
-          <span class="category-emoji broiler-bg">🐓</span>
-          <strong>Broilers</strong>
-          <small>Meat birds</small>
-        </button>
-
-        <button class="category-card" data-category="Poultry Feed">
-          <span class="category-emoji feed-bg">🌾</span>
-          <strong>Poultry feed</strong>
-          <small>Feed and nutrition</small>
-        </button>
-
-        <button class="category-card" data-category="Equipment">
-          <span class="category-emoji equip-bg">🧺</span>
-          <strong>Equipment</strong>
-          <small>Farm essentials</small>
-        </button>
-
-        <button class="category-card" data-category="Other">
-          <span class="category-emoji other-bg">＋</span>
-          <strong>Other products</strong>
-          <small>Explore more</small>
-        </button>
-
-      </div>
-    </section>
-
-    <!-- Main product marketplace -->
-    <section class="section marketplace-section" id="marketplace">
-
-      <div class="section-heading listing-heading">
-
-        <div>
-          <span class="eyebrow">THE MARKETPLACE</span>
-
-          <h2>Products for your poultry business</h2>
-
-          <p class="muted">
-            Discover available products from independent sellers.
-          </p>
-        </div>
-
-        <div class="sort-control">
-          <label for="sortSelect">Sort by</label>
-
-          <select id="sortSelect">
-            <option value="featured">Featured</option>
-            <option value="price-asc">Price: low to high</option>
-            <option value="price-desc">Price: high to low</option>
-            <option value="newest">Recently added</option>
-          </select>
-        </div>
-
-      </div>
-
-      <div class="filter-row">
-
-        <div class="filter-chips" id="filterChips">
-
-          <button class="chip active" data-category="all">
-            All products
-          </button>
-
-          <button class="chip" data-category="Eggs">
-            Eggs
-          </button>
-
-          <button class="chip" data-category="Layers">
-            Layers
-          </button>
-
-          <button class="chip" data-category="Broilers">
-            Broilers
-          </button>
-
-          <button class="chip" data-category="Poultry Feed">
-            Poultry feed
-          </button>
-
-          <button class="chip" data-category="Equipment">
-            Equipment
-          </button>
-
-        </div>
-
-        <span id="resultCount" class="result-count">
-          Loading products…
-        </span>
-
-      </div>
-
-      <div class="product-grid" id="productGrid">
-        <div class="loading-state">
-          Loading marketplace…
-        </div>
-      </div>
-
-      <div class="center-action">
-        <button class="button button-outline" id="showAllBtn">
-          Refresh listings <span>↻</span>
-        </button>
-      </div>
-
-    </section>
-
-    <!-- Seller promotion -->
-    <section class="seller-band" id="sellers">
-
-      <div class="seller-band-copy">
-
-        <span class="eyebrow eyebrow-light">
-          FOR FARMERS & SELLERS
-        </span>
-
-        <h2>
-          Your products deserve<br>
-          a bigger marketplace.
-        </h2>
-
-        <p>
-          Set up your storefront, publish your listings,
-          and help buyers discover what your farm has to offer.
-        </p>
-
-        <button class="button button-gold" id="sellerBandBtn">
-          Open your storefront <span>→</span>
-        </button>
-
-      </div>
-
-      <div class="seller-band-art">
-
-        <div class="store-card">
-
-          <div class="store-top">
-            <span class="store-logo">🌿</span>
-            <span class="store-status">● Seller storefront</span>
-          </div>
-
-          <div class="store-lines">
-            <b></b>
-            <i></i>
-            <i></i>
-          </div>
-
-          <div class="store-products">
-            <span>🥚</span>
-            <span>🌾</span>
-            <span>🐔</span>
-          </div>
-
-          <div class="store-bottom">
-            <span>My products</span>
-            <strong>Manage listings ↗</strong>
-          </div>
-
-        </div>
-
-        <div class="seller-decoration">✳</div>
-
-      </div>
-    </section>
-
-    <!-- Seller directory -->
-    <section class="section sellers-section">
-
-      <div class="section-heading">
-
-        <div>
-          <span class="eyebrow">MEET THE COMMUNITY</span>
-
-          <h2>Discover poultry sellers</h2>
-
-          <p class="muted">
-            Explore storefronts and the products sellers have listed.
-          </p>
-        </div>
-
-        <button class="button button-outline" id="allSellersBtn">
-          Explore sellers →
-        </button>
-
-      </div>
-
-      <div class="seller-grid" id="sellerGrid">
-        <div class="loading-state">
-          Loading sellers…
-        </div>
-      </div>
-
-    </section>
-
-    <!-- How it works -->
-    <section class="how-section" id="how-it-works">
-
-      <div class="section centered-heading">
-
-        <span class="eyebrow">SIMPLE BY DESIGN</span>
-
-        <h2>Marketplace made straightforward</h2>
-
-        <p class="muted">
-          A simple way to find products and connect with poultry businesses.
-        </p>
-
-        <div class="steps-grid">
-
-          <article class="step-card">
-
-            <span class="step-number">01</span>
-            <span class="step-icon">🔎</span>
-
-            <h3>Discover</h3>
-
-            <p>
-              Search products, compare listings,
-              and explore seller storefronts.
-            </p>
-
-          </article>
-
-          <article class="step-card">
-
-            <span class="step-number">02</span>
-            <span class="step-icon">🤝</span>
-
-            <h3>Connect</h3>
-
-            <p>
-              Review product details and use
-              the available seller contact options.
-            </p>
-
-          </article>
-
-          <article class="step-card">
-
-            <span class="step-number">03</span>
-            <span class="step-icon">📦</span>
-
-            <h3>Place an order</h3>
-
-            <p>
-              Add items to your cart and submit
-              your order details through the marketplace.
-            </p>
-
-          </article>
-
-        </div>
-      </div>
-    </section>
-
-    <!-- Safety notice -->
-    <section class="safety-strip">
-
-      <div class="safety-icon">🛡️</div>
-
-      <div>
-        <strong>Trade thoughtfully. Verify before you pay.</strong>
-
-        <p>
-          Check product details, seller information, quantities,
-          and delivery arrangements directly. Never share passwords
-          or verification codes.
-        </p>
-      </div>
-
-      <button class="inline-link" id="safetyBtn">
-        Safety tips ↗
-      </button>
-
-    </section>
-
-  </main>
-
-  <!-- Website footer -->
-  <footer class="site-footer">
-
-    <div class="footer-main">
-
-      <div class="footer-brand">
-
-        <a class="brand brand-footer" href="#home">
-
-          <span class="brand-mark">P<span>+</span></span>
-
-          <span class="brand-copy">
-            Poultry<span>Link</span>
-            <small>NIGERIA'S POULTRY MARKETPLACE</small>
-          </span>
-
-        </a>
-
-        <p>
-          Bringing Nigeria’s poultry community closer,
-          one connection at a time.
-        </p>
-
-      </div>
-
-      <div>
-        <h4>Marketplace</h4>
-        <a href="#marketplace">Browse products</a>
-        <a href="#categories">Categories</a>
-        <a href="#sellers">Find sellers</a>
-      </div>
-
-      <div>
-        <h4>For sellers</h4>
-        <button class="footer-link" id="footerSellBtn">
-          Start selling
-        </button>
-
-        <button class="footer-link" id="footerDashboardBtn">
-          Dashboard
-        </button>
-
-        <a href="#how-it-works">How it works</a>
-      </div>
-
-      <div>
-        <h4>Information</h4>
-
-        <button class="footer-link" id="termsBtn">
-          Terms of use
-        </button>
-
-        <button class="footer-link" id="privacyBtn">
-          Privacy notice
-        </button>
-
-        <button class="footer-link" id="contactBtn">
-          Contact
-        </button>
-      </div>
-
-    </div>
-
-    <div class="footer-bottom">
-
-      <span>
-        © <span id="year"></span> PoultryLink. All rights reserved.
-      </span>
-
-      <span>
-        Made for Nigeria’s poultry community 🇳🇬
-      </span>
-
-    </div>
-
-  </footer>
-
-  <!-- Notifications -->
-  <div
-    class="toast-region"
-    id="toastRegion"
-    aria-live="polite"
-    aria-atomic="true">
-  </div>
-
-  <!-- Reusable modal -->
-  <div class="modal-backdrop hidden" id="modalBackdrop">
-
-    <section
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modalTitle">
-
-      <div class="modal-header">
-
-        <div>
-          <span class="eyebrow" id="modalEyebrow">
-            POULTRYLINK
-          </span>
-
-          <h2 id="modalTitle">Dialog</h2>
-        </div>
-
         <button
-          class="icon-button"
-          id="modalClose"
-          aria-label="Close dialog">
-          ×
+            class="menu-toggle"
+            id="menuToggle"
+            type="button"
+            aria-label="Toggle navigation"
+            aria-expanded="false"
+        >
+            ☰
         </button>
-
-      </div>
-
-      <div class="modal-body" id="modalBody"></div>
-
-    </section>
-
-  </div>
-
-  <!-- User dashboard -->
-  <aside
-    class="dashboard-drawer hidden"
-    id="dashboardDrawer"
-    aria-label="User dashboard">
-
-    <div class="drawer-header">
-
-      <div>
-        <span class="eyebrow">YOUR POULTRYLINK</span>
-        <h2>My dashboard</h2>
-      </div>
-
-      <button
-        class="icon-button"
-        id="closeDashboard"
-        aria-label="Close dashboard">
-        ×
-      </button>
-
+        <nav class="main-nav" id="mainNav" aria-label="Main navigation">
+            <a href="#home">Home</a>
+            <a href="#marketplace">Marketplace</a>
+            <a href="#categories">Categories</a>
+            <a href="#how-it-works">How It Works</a>
+        </nav>
+        <div class="header-actions">
+            <button class="button button-outline" id="loginButton" type="button">
+                Log In
+            </button>
+            <button class="button button-primary" id="registerButton" type="button">
+                Join POULTRYLINK
+            </button>
+        </div>
     </div>
-
-    <div class="drawer-user" id="drawerUser"></div>
-
-    <nav class="dashboard-tabs" id="dashboardTabs">
-
-      <button class="active" data-tab="overview">
-        Overview
-      </button>
-
-      <button data-tab="profile">
-        Profile
-      </button>
-
-      <button data-tab="activity">
-        Activity
-      </button>
-
-      <button data-tab="notifications">
-        Notifications
-      </button>
-
-      <button data-tab="buyer-orders">
-        Buyer orders
-      </button>
-
-      <button data-tab="saved">
-        Saved products
-      </button>
-
-      <button data-tab="storefront">
-        Storefront
-      </button>
-
-      <button data-tab="listings">
-        My listings
-      </button>
-
-      <button data-tab="inventory">
-        Inventory
-      </button>
-
-      <button data-tab="seller-orders">
-        Seller orders
-      </button>
-
-      <button data-tab="messages">
-        Messages
-      </button>
-
-      <button data-tab="settings">
-        Settings
-      </button>
-
-    </nav>
-
-    <div class="dashboard-content" id="dashboardContent"></div>
-
-  </aside>
-
-  <!-- Dashboard background overlay -->
-  <div class="drawer-scrim hidden" id="drawerScrim"></div>
-
-  <!-- Main JavaScript application -->
-  <script type="module" src="app.js"></script>
-
+</header>
+<main>
+    <!-- HERO SECTION -->
+    <section class="hero" id="home">
+        <div class="container hero-grid">
+            <div class="hero-content">
+                <span class="eyebrow">
+                    NIGERIA'S POULTRY MARKETPLACE
+                </span>
+                <h1>
+                    Your poultry business,
+                    <span>connected.</span>
+                </h1>
+                <p class="hero-description">
+                    Discover poultry products, connect with farmers,
+                    find trusted suppliers and grow your business
+                    with POULTRYLINK.
+                </p>
+                <form class="hero-search" id="searchForm">
+                    <label class="visually-hidden" for="searchInput">
+                        Search poultry products
+                    </label>
+                    <input
+                        type="search"
+                        id="searchInput"
+                        placeholder="Search chickens, eggs, feeds..."
+                    >
+                    <button class="button button-primary" type="submit">
+                        Search
+                    </button>
+                </form>
+                <div class="hero-highlights">
+                    <span>✓ Explore poultry products</span>
+                    <span>✓ Connect with sellers</span>
+                    <span>✓ Shop across Nigeria</span>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-image-card">
+                    <span class="hero-emoji" aria-hidden="true">🐓</span>
+                    <div class="hero-image-caption">
+                        <span class="caption-label">
+                            WELCOME TO
+                        </span>
+                        <h2>POULTRYLINK</h2>
+                        <p>From farm to marketplace.</p>
+                    </div>
+                </div>
+                <div class="floating-badge">
+                    <span>🌾</span>
+                    <div>
+                        <strong>One community</strong>
+                        <small>Many opportunities</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- CATEGORIES -->
+    <section class="section categories-section" id="categories">
+        <div class="container">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">EXPLORE THE MARKET</span>
+                    <h2>Browse categories</h2>
+                    <p>Find what your poultry business needs.</p>
+                </div>
+            </div>
+            <div class="category-grid">
+                <button class="category-card" data-category="Live Birds" type="button">
+                    <span class="category-icon">🐔</span>
+                    <span class="category-name">Live Birds</span>
+                    <span class="category-description">Broilers and layers</span>
+                </button>
+                <button class="category-card" data-category="Eggs" type="button">
+                    <span class="category-icon">🥚</span>
+                    <span class="category-name">Eggs</span>
+                    <span class="category-description">Fresh poultry eggs</span>
+                </button>
+                <button class="category-card" data-category="Feeds" type="button">
+                    <span class="category-icon">🌾</span>
+                    <span class="category-name">Poultry Feeds</span>
+                    <span class="category-description">Feed and nutrition</span>
+                </button>
+                <button class="category-card" data-category="Equipment" type="button">
+                    <span class="category-icon">🧰</span>
+                    <span class="category-name">Equipment</span>
+                    <span class="category-description">Farm essentials</span>
+                </button>
+                <button class="category-card" data-category="Day-Old Chicks" type="button">
+                    <span class="category-icon">🐣</span>
+                    <span class="category-name">Day-Old Chicks</span>
+                    <span class="category-description">Start your flock</span>
+                </button>
+                <button class="category-card" data-category="Services" type="button">
+                    <span class="category-icon">🤝</span>
+                    <span class="category-name">Services</span>
+                    <span class="category-description">Poultry professionals</span>
+                </button>
+            </div>
+        </div>
+    </section>
+    <!-- MARKETPLACE -->
+    <section class="section marketplace-section" id="marketplace">
+        <div class="container">
+            <div class="section-heading marketplace-heading">
+                <div>
+                    <span class="eyebrow">THE MARKETPLACE</span>
+                    <h2>Discover poultry products</h2>
+                    <p>Explore products listed by poultry sellers.</p>
+                </div>
+                <button
+                    class="button button-outline"
+                    id="clearFiltersButton"
+                    type="button"
+                >
+                    View All Products
+                </button>
+            </div>
+            <div class="marketplace-toolbar">
+                <label for="categoryFilter" class="filter-label">
+                    Category
+                </label>
+                <select id="categoryFilter">
+                    <option value="All">All Categories</option>
+                    <option value="Live Birds">Live Birds</option>
+                    <option value="Eggs">Eggs</option>
+                    <option value="Feeds">Poultry Feeds</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Day-Old Chicks">Day-Old Chicks</option>
+                    <option value="Services">Services</option>
+                </select>
+                <label for="sortFilter" class="filter-label">
+                    Sort by
+                </label>
+                <select id="sortFilter">
+                    <option value="featured">Featured</option>
+                    <option value="price-low">Price: Low to High</option>
+                    <option value="price-high">Price: High to Low</option>
+                    <option value="name">Product Name</option>
+                </select>
+            </div>
+            <div
+                class="product-grid"
+                id="productGrid"
+                aria-live="polite"
+            >
+                <!-- JavaScript renders product cards here. -->
+                <div class="loading-message">
+                    Loading marketplace...
+                </div>
+            </div>
+            <div class="marketplace-footer">
+                <p id="productCount">Discover poultry products.</p>
+            </div>
+        </div>
+    </section>
+    <!-- SELLER PROMOTION -->
+    <section class="seller-promotion">
+        <div class="container seller-promotion-content">
+            <div>
+                <span class="eyebrow">FOR POULTRY SELLERS</span>
+                <h2>Bring your poultry business online.</h2>
+                <p>
+                    Create your seller profile, showcase your products
+                    and help more customers discover your business.
+                </p>
+            </div>
+            <button
+                class="button button-light"
+                id="becomeSellerButton"
+                type="button"
+            >
+                Start Selling
+            </button>
+        </div>
+    </section>
+    <!-- HOW IT WORKS -->
+    <section class="section how-section" id="how-it-works">
+        <div class="container">
+            <div class="section-heading centered-heading">
+                <span class="eyebrow">SIMPLE AND CONVENIENT</span>
+                <h2>How POULTRYLINK works</h2>
+                <p>
+                    Find products and connect with poultry businesses
+                    in a few simple steps.
+                </p>
+            </div>
+            <div class="steps-grid">
+                <article class="step-card">
+                    <span class="step-number">01</span>
+                    <div class="step-icon">🔎</div>
+                    <h3>Discover</h3>
+                    <p>
+                        Browse categories and explore available
+                        poultry products.
+                    </p>
+                </article>
+                <article class="step-card">
+                    <span class="step-number">02</span>
+                    <div class="step-icon">🤝</div>
+                    <h3>Connect</h3>
+                    <p>
+                        Find sellers and learn more about their
+                        products and businesses.
+                    </p>
+                </article>
+                <article class="step-card">
+                    <span class="step-number">03</span>
+                    <div class="step-icon">📦</div>
+                    <h3>Get Started</h3>
+                    <p>
+                        Contact the seller and agree on order,
+                        delivery and payment arrangements.
+                    </p>
+                </article>
+            </div>
+        </div>
+    </section>
+    <!-- SAFETY NOTICE -->
+    <section class="safety-section">
+        <div class="container safety-content">
+            <span class="safety-icon">🛡️</span>
+            <div>
+                <h2>Trade with care</h2>
+                <p>
+                    Confirm seller details, product availability,
+                    delivery arrangements and payment terms before
+                    completing a transaction. Never rely on an
+                    unverified payment screenshot as proof of payment.
+                </p>
+            </div>
+        </div>
+    </section>
+</main>
+<!-- FOOTER -->
+<footer class="site-footer">
+    <div class="container">
+        <div class="footer-main">
+            <div class="footer-brand">
+                <a href="#home" class="brand">
+                    <span class="brand-icon">🐔</span>
+                    <span class="brand-name">POULTRY<span>LINK</span></span>
+                </a>
+                <p>
+                    Connecting poultry farmers, suppliers and buyers
+                    across Nigeria.
+                </p>
+            </div>
+            <div class="footer-column">
+                <h3>Marketplace</h3>
+                <a href="#marketplace">Browse Products</a>
+                <a href="#categories">Categories</a>
+                <button id="footerSellerButton" type="button">
+                    Become a Seller
+                </button>
+            </div>
+            <div class="footer-column">
+                <h3>About</h3>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#home">Home</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>
+                &copy; <span id="currentYear"></span> POULTRYLINK.
+                All rights reserved.
+            </p>
+            <p>Built for Nigeria's poultry community.</p>
+        </div>
+    </div>
+</footer>
+<!-- REUSABLE MODAL -->
+<div
+    class="modal-backdrop"
+    id="modalBackdrop"
+    aria-hidden="true"
+>
+    <section
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+    >
+        <button
+            class="modal-close"
+            id="modalClose"
+            type="button"
+            aria-label="Close dialog"
+        >
+            &times;
+        </button>
+        <div id="modalContent">
+            <h2 id="modalTitle">Welcome to POULTRYLINK</h2>
+            <p id="modalMessage">
+                Connect with Nigeria's poultry community.
+            </p>
+        </div>
+    </section>
+</div>
+<!-- TOAST NOTIFICATIONS -->
+<div
+    class="toast-container"
+    id="toastContainer"
+    aria-live="polite"
+    aria-atomic="true"
+></div>
 </body>
 </html>
