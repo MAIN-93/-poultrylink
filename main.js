@@ -3537,25 +3537,56 @@ async function submitListing(event) {
     return;
   }
 
-  /*
-   * IMPORTANT:
-   *
-   * The existing Firestore product rules you supplied do not
-   * allow quantity, state or town fields. They also only allow
-   * specific listing fields.
-   *
-   * Do not send a document that violates those rules and then
-   * pretend the listing was saved.
-   *
-   * This form therefore reports the schema requirement until
-   * the database rules are updated to support these fields.
-   */
+const location = [town, sellerState]
+  .filter(Boolean)
+  .join(", ");
+
+const imageUrls = imageUrl ? [imageUrl] : [];
+
+const listingData = {
+  sellerId: state.user.uid,
+  title,
+  description,
+  category,
+  price,
+  unit,
+  location,
+  imageUrls,
+  status: "pending_review",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp()
+};
+
+const button = byId("submitListingButton");
+
+setButtonLoading(button, true, "Saving listing...");
+
+try {
+  await addDoc(collection(db, "products"), listingData);
+
+  closeNativeDialog("listingDialog");
+
+  toast("Listing submitted successfully for review.");
+
+  await loadProducts();
+
+  if (state.activePage === "dashboard") {
+    renderDashboardTab("listings");
+  }
+} catch (error) {
+  console.error("Listing submission failed.", error);
 
   setMessage(
     "listingFormMessage",
-    "Listing publication is blocked until the Firestore product schema and security rules are updated to support quantity and the additional location fields. No listing has been saved.",
+    friendlyAuthError(error),
     "error"
   );
+} finally {
+  setButtonLoading(
+    byId("submitListingButton"),
+    false
+  );
+ }
 }
 
 
