@@ -1,3170 +1,856 @@
 <!DOCTYPE html>
-<html lang="en-NG">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
 
-  <meta
-    name="description"
-    content="POULTRYLINK connects Nigerian poultry farmers, buyers and sellers. Discover poultry products, manage listings and connect with sellers."
-  >
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-  <meta name="theme-color" content="#174d32">
+    <meta
+        name="description"
+        content="POULTRYLINK connects poultry farmers, suppliers, sellers and buyers across Nigeria."
+    >
 
-  <title>POULTRYLINK — Nigeria's Poultry Marketplace</title>
+    <meta name="theme-color" content="#14532d">
 
-  <link rel="stylesheet" href="style.css">
+    <title>POULTRYLINK | Nigeria's Poultry Marketplace</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Main stylesheet -->
+    <link rel="stylesheet" href="styles.css">
 
-  <link
-    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet"
-  >
+    <!-- Load the JavaScript application -->
+    <script type="module" src="main.js"></script>
 </head>
 
 <body>
 
-  <!-- =====================================================
-       ACCESSIBILITY
-  ====================================================== -->
-
-  <a class="skip-link" href="#mainContent">
-    Skip to main content
-  </a>
-
-
-  <!-- =====================================================
-       ANNOUNCEMENT BAR
-  ====================================================== -->
-
-  <div class="announcement-bar">
-    <div class="container">
-      <p>
-        <span aria-hidden="true">●</span>
-        Connecting Nigeria's poultry industry
-      </p>
-    </div>
-  </div>
-
-
-  <!-- =====================================================
-       WEBSITE HEADER
-  ====================================================== -->
-
-  <header class="site-header" id="siteHeader">
-
-    <div class="container header-inner">
-
-      <a
-        href="#home"
-        class="brand"
-        aria-label="POULTRYLINK homepage"
-      >
-        <span class="brand-mark" aria-hidden="true">P</span>
-
-        <span class="brand-copy">
-          <strong>POULTRYLINK</strong>
-          <small>Nigeria's Poultry Marketplace</small>
-        </span>
-      </a>
-
-
-      <button
-        class="menu-toggle"
-        id="menuToggle"
-        type="button"
-        aria-label="Open navigation menu"
-        aria-controls="mainNav"
-        aria-expanded="false"
-      >
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-
-
-      <nav
-        class="main-nav"
-        id="mainNav"
-        aria-label="Main navigation"
-      >
-
-        <a href="#home">Home</a>
-
-        <a href="#marketplace">Marketplace</a>
-
-        <a href="#categories">Categories</a>
-
-        <a href="#sellers">Sellers</a>
-
-        <a href="#how-it-works">How it works</a>
-
-      </nav>
-
-
-      <!-- Signed-out and signed-in navigation are separate.
-           JavaScript must show the correct state. -->
-
-      <div class="header-actions" id="headerActions">
-
-        <div id="signedOutActions" class="auth-actions">
-
-          <button
-            type="button"
-            class="button button-outline"
-            id="loginButton"
-          >
-            Sign in
-          </button>
-
-          <button
-            type="button"
-            class="button button-primary"
-            id="registerButton"
-          >
-            Create account
-          </button>
-
-        </div>
-
-
-        <div
-          id="signedInActions"
-          class="account-actions"
-          hidden
-        >
-
-          <button
-            type="button"
-            class="account-menu-trigger"
-            id="accountMenuButton"
-            aria-expanded="false"
-            aria-controls="accountDropdown"
-          >
-
-            <span
-              class="account-avatar"
-              id="headerAvatar"
-              aria-hidden="true"
-            >
-              U
-            </span>
-
-            <span class="account-trigger-copy">
-              <small>Signed in as</small>
-              <strong id="headerUserName">Your account</strong>
-            </span>
-
-            <span aria-hidden="true">⌄</span>
-
-          </button>
-
-
-          <div
-            class="account-dropdown"
-            id="accountDropdown"
-            hidden
-          >
-
-            <div class="account-dropdown-heading">
-
-              <strong id="dropdownUserName">
-                Your account
-              </strong>
-
-              <small id="dropdownUserEmail">
-                Account email
-              </small>
-
-              <span
-                id="emailVerificationStatus"
-                class="status-badge"
-              >
-                Checking account status
-              </span>
-
-            </div>
-
-            <a href="#profile" data-page="profile">
-              My profile
-            </a>
-
-            <a href="#dashboard" data-page="dashboard">
-              My dashboard
-            </a>
-
-            <a href="#buyer-orders" data-dashboard-tab="buyer-orders">
-              My orders
-            </a>
-
-            <a href="#saved-products" data-dashboard-tab="saved">
-              Saved products
-            </a>
-
-            <a href="#settings" data-dashboard-tab="settings">
-              Account settings
-            </a>
-
-            <button
-              type="button"
-              id="signOutButton"
-              class="dropdown-signout"
-            >
-              Sign out
-            </button>
-
-          </div>
-
-        </div>
-
-
-        <button
-          type="button"
-          class="cart-header-button"
-          id="cartButton"
-          aria-label="Open shopping cart"
-        >
-
-          <span aria-hidden="true">🛒</span>
-
-          <span>Cart</span>
-
-          <span
-            class="cart-count"
-            id="cartCount"
-            aria-live="polite"
-          >
-            0
-          </span>
-
-        </button>
-
-      </div>
-
+    <!-- ANNOUNCEMENT BAR -->
+    <div class="announcement-bar">
+        <p>
+            Connecting Nigeria's poultry community.
+        </p>
     </div>
 
-  </header>
 
-
-
-  <!-- =====================================================
-       MAIN WEBSITE CONTENT
-  ====================================================== -->
-
-  <main id="mainContent">
-
-
-    <!-- ===================================================
-         HOME PAGE
-    ==================================================== -->
-
-    <section
-      class="hero-section"
-      id="home"
-    >
-
-      <div class="container hero-grid">
-
-        <div class="hero-content">
-
-          <span class="eyebrow">
-            NIGERIA'S POULTRY MARKETPLACE
-          </span>
-
-          <h1>
-            Your poultry business,
-            <span>connected.</span>
-          </h1>
-
-          <p class="hero-description">
-            Discover poultry products, connect with farmers
-            and sellers, manage your listings, and grow your
-            business through one marketplace.
-          </p>
-
-
-          <div class="hero-actions">
+    <!-- HEADER -->
+    <header class="site-header">
+        <div class="container header-content">
 
             <a
-              href="#marketplace"
-              class="button button-primary"
+                href="#home"
+                class="brand"
+                aria-label="POULTRYLINK home"
             >
-              Explore marketplace
-              <span aria-hidden="true">→</span>
+                <span class="brand-icon" aria-hidden="true">🐔</span>
+
+                <span class="brand-name">
+                    POULTRY<span>LINK</span>
+                </span>
             </a>
 
-            <button
-              type="button"
-              class="button button-outline"
-              id="becomeSellerButton"
-            >
-              Start selling
-            </button>
-
-          </div>
-
-
-          <div class="hero-trust-points">
-
-            <span>
-              <span aria-hidden="true">✓</span>
-              Real listings
-            </span>
-
-            <span>
-              <span aria-hidden="true">✓</span>
-              Nigerian market
-            </span>
-
-            <span>
-              <span aria-hidden="true">✓</span>
-              Buyer and seller accounts
-            </span>
-
-          </div>
-
-        </div>
-
-
-        <div class="hero-visual">
-
-          <div class="hero-image-frame">
-
-            <img
-              src="https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=1100&q=85"
-              alt="Chickens in a poultry farming environment"
-              fetchpriority="high"
-            >
-
-            <div class="hero-image-overlay">
-
-              <span class="hero-image-label">
-                BUILT FOR POULTRY BUSINESSES
-              </span>
-
-              <strong>
-                From the farm
-                to the marketplace.
-              </strong>
-
-            </div>
-
-          </div>
-
-          <div class="hero-floating-card">
-
-            <span aria-hidden="true">🌱</span>
-
-            <div>
-              <strong>Grow your business</strong>
-              <small>Connect with the poultry market</small>
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         MARKETPLACE SEARCH
-    ==================================================== -->
-
-    <section
-      class="search-section"
-      aria-label="Search poultry products"
-    >
-
-      <div class="container">
-
-        <form
-          id="searchForm"
-          class="marketplace-search"
-          role="search"
-        >
-
-          <div class="search-input-group">
-
-            <label for="searchInput">
-              Search products
-            </label>
-
-            <input
-              type="search"
-              id="searchInput"
-              name="search"
-              placeholder="Try eggs, broilers, poultry feed..."
-              autocomplete="off"
-              maxlength="150"
-            >
-
-          </div>
-
-
-          <div class="search-category-group">
-
-            <label for="categoryFilter">
-              Product category
-            </label>
-
-            <select
-              id="categoryFilter"
-              name="category"
-            >
-
-              <option value="All">All categories</option>
-
-              <option value="Live Birds">Live Birds</option>
-
-              <option value="Eggs">Eggs</option>
-
-              <option value="Feeds">Poultry Feed</option>
-
-              <option value="Equipment">Equipment</option>
-
-              <option value="Day-Old Chicks">
-                Day-Old Chicks
-              </option>
-
-              <option value="Services">Services</option>
-
-            </select>
-
-          </div>
-
-
-          <button
-            type="submit"
-            class="button button-primary search-submit"
-          >
-            Search marketplace
-          </button>
-
-        </form>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         PRODUCT CATEGORIES
-    ==================================================== -->
-
-    <section
-      class="section category-section"
-      id="categories"
-    >
-
-      <div class="container">
-
-        <div class="section-heading">
-
-          <div>
-
-            <span class="eyebrow">
-              EXPLORE THE MARKET
-            </span>
-
-            <h2>Shop by category</h2>
-
-            <p>
-              Find products and services for your poultry
-              business.
-            </p>
-
-          </div>
-
-          <a
-            href="#marketplace"
-            class="text-link"
-          >
-            Browse all products →
-          </a>
-
-        </div>
-
-
-        <div class="category-grid">
-
-          <button
-            type="button"
-            class="category-card"
-            data-category="Live Birds"
-            aria-pressed="false"
-          >
-
-            <span
-              class="category-icon"
-              aria-hidden="true"
-            >
-              🐔
-            </span>
-
-            <strong>Live Birds</strong>
-
-            <span>Layers, broilers and other poultry</span>
-
-          </button>
-
-
-          <button
-            type="button"
-            class="category-card"
-            data-category="Eggs"
-            aria-pressed="false"
-          >
-
-            <span
-              class="category-icon"
-              aria-hidden="true"
-            >
-              🥚
-            </span>
-
-            <strong>Eggs</strong>
-
-            <span>Fresh eggs and egg products</span>
-
-          </button>
-
-
-          <button
-            type="button"
-            class="category-card"
-            data-category="Feeds"
-            aria-pressed="false"
-          >
-
-            <span
-              class="category-icon"
-              aria-hidden="true"
-            >
-              🌾
-            </span>
-
-            <strong>Poultry Feed</strong>
-
-            <span>Feed and nutritional products</span>
-
-          </button>
-
-
-          <button
-            type="button"
-            class="category-card"
-            data-category="Day-Old Chicks"
-            aria-pressed="false"
-          >
-
-            <span
-              class="category-icon"
-              aria-hidden="true"
-            >
-              🐣
-            </span>
-
-            <strong>Day-Old Chicks</strong>
-
-            <span>Chicks for poultry production</span>
-
-          </button>
-
-
-          <button
-            type="button"
-            class="category-card"
-            data-category="Equipment"
-            aria-pressed="false"
-          >
-
-            <span
-              class="category-icon"
-              aria-hidden="true"
-            >
-              🛠️
-            </span>
-
-            <strong>Equipment</strong>
-
-            <span>Tools and farm equipment</span>
-
-          </button>
-
-
-          <button
-            type="button"
-            class="category-card"
-            data-category="Services"
-            aria-pressed="false"
-          >
-
-            <span
-              class="category-icon"
-              aria-hidden="true"
-            >
-              🤝
-            </span>
-
-            <strong>Services</strong>
-
-            <span>Poultry-related business services</span>
-
-          </button>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         MARKETPLACE LISTINGS
-    ==================================================== -->
-
-    <section
-      class="section marketplace-section"
-      id="marketplace"
-    >
-
-      <div class="container">
-
-        <div class="section-heading marketplace-heading">
-
-          <div>
-
-            <span class="eyebrow">
-              THE MARKETPLACE
-            </span>
-
-            <h2>Explore poultry products</h2>
-
-            <p>
-              Browse available listings published by sellers.
-            </p>
-
-          </div>
-
-
-          <div class="marketplace-controls">
-
-            <label
-              for="sortFilter"
-              class="visually-hidden"
-            >
-              Sort products
-            </label>
-
-            <select id="sortFilter">
-
-              <option value="newest">
-                Newest first
-              </option>
-
-              <option value="price-low">
-                Price: low to high
-              </option>
-
-              <option value="price-high">
-                Price: high to low
-              </option>
-
-              <option value="name">
-                Product name
-              </option>
-
-            </select>
-
 
             <button
-              type="button"
-              id="clearFiltersButton"
-              class="button button-outline"
+                class="menu-toggle"
+                id="menuToggle"
+                type="button"
+                aria-label="Toggle navigation"
+                aria-expanded="false"
+                aria-controls="mainNav"
             >
-              Clear filters
+                ☰
             </button>
-
-          </div>
-
-        </div>
-
-
-        <div class="marketplace-status-bar">
-
-          <p
-            id="productCount"
-            aria-live="polite"
-          >
-            Loading available listings...
-          </p>
-
-          <p class="marketplace-location-note">
-            Prices are displayed in Nigerian naira (₦).
-          </p>
-
-        </div>
-
-
-        <!-- JavaScript must populate this container with
-             genuine active Firestore product records. -->
-
-        <div
-          class="product-grid"
-          id="productGrid"
-          aria-live="polite"
-          aria-busy="true"
-        >
-
-          <div class="loading-state">
-            Loading marketplace listings...
-          </div>
-
-        </div>
-
-
-        <div
-          class="marketplace-empty-state"
-          id="marketplaceEmptyState"
-          hidden
-        >
-
-          <span aria-hidden="true">🔎</span>
-
-          <h3>No matching products found</h3>
-
-          <p>
-            Try another search term or choose a different category.
-          </p>
-
-          <button
-            type="button"
-            class="button button-outline"
-            id="emptyStateClearButton"
-          >
-            Reset search
-          </button>
-
-        </div>
-
-
-        <div class="marketplace-footer-action">
-
-          <p>
-            Are you a poultry farmer or product supplier?
-          </p>
-
-          <button
-            type="button"
-            class="button button-primary"
-            id="marketplaceSellerButton"
-          >
-            Publish a product
-          </button>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         SELLER DIRECTORY
-    ==================================================== -->
-
-    <section
-      class="section seller-directory-section"
-      id="sellers"
-    >
-
-      <div class="container">
-
-        <div class="section-heading">
-
-          <div>
-
-            <span class="eyebrow">
-              MEET THE MARKET
-            </span>
-
-            <h2>Discover poultry sellers</h2>
-
-            <p>
-              Explore seller storefronts and the products
-              they make available.
-            </p>
-
-          </div>
-
-        </div>
-
-
-        <!-- This section must contain real, publicly available
-             storefront records, not private user documents. -->
-
-        <div
-          class="seller-directory-grid"
-          id="sellerDirectoryGrid"
-          aria-live="polite"
-        >
-
-          <div class="loading-state">
-            Loading seller storefronts...
-          </div>
-
-        </div>
-
-
-        <div
-          class="seller-directory-empty"
-          id="sellerDirectoryEmpty"
-          hidden
-        >
-
-          <h3>No public storefronts available yet</h3>
-
-          <p>
-            Seller storefronts will appear when sellers have
-            completed the required setup and verification.
-          </p>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         HOW IT WORKS
-    ==================================================== -->
-
-    <section
-      class="section how-it-works-section"
-      id="how-it-works"
-    >
-
-      <div class="container">
-
-        <div class="section-heading section-heading-centered">
-
-          <span class="eyebrow">
-            SIMPLE AND STRAIGHTFORWARD
-          </span>
-
-          <h2>How POULTRYLINK works</h2>
-
-          <p>
-            A marketplace for discovering poultry products
-            and managing your poultry business.
-          </p>
-
-        </div>
-
-
-        <div class="steps-grid">
-
-          <article class="step-card">
-
-            <span class="step-number">01</span>
-
-            <div
-              class="step-icon"
-              aria-hidden="true"
-            >
-              🔍
-            </div>
-
-            <h3>Discover products</h3>
-
-            <p>
-              Search the marketplace, explore categories,
-              compare available listings and review seller
-              information.
-            </p>
-
-          </article>
-
-
-          <article class="step-card">
-
-            <span class="step-number">02</span>
-
-            <div
-              class="step-icon"
-              aria-hidden="true"
-            >
-              🤝
-            </div>
-
-            <h3>Connect with sellers</h3>
-
-            <p>
-              Explore seller storefronts and review product
-              information before deciding how to proceed.
-            </p>
-
-          </article>
-
-
-          <article class="step-card">
-
-            <span class="step-number">03</span>
-
-            <div
-              class="step-icon"
-              aria-hidden="true"
-            >
-              📦
-            </div>
-
-            <h3>Manage your business</h3>
-
-            <p>
-              Registered users can access their relevant
-              account features, listings and marketplace
-              activities.
-            </p>
-
-          </article>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         SELLER PROMOTION
-    ==================================================== -->
-
-    <section
-      class="seller-promotion-section"
-      id="sell-on-poultrylink"
-    >
-
-      <div class="container seller-promotion-inner">
-
-        <div class="seller-promotion-content">
-
-          <span class="eyebrow">
-            FOR FARMERS AND SELLERS
-          </span>
-
-          <h2>
-            Bring your poultry products
-            to the marketplace.
-          </h2>
-
-          <p>
-            Create an account, complete the seller application,
-            and submit your information for the required
-            manual verification.
-          </p>
-
-          <ul class="seller-benefits">
-
-            <li>
-              Create and manage product listings.
-            </li>
-
-            <li>
-              Organise products and update availability.
-            </li>
-
-            <li>
-              Build your seller storefront.
-            </li>
-
-            <li>
-              Access seller tools when approved.
-            </li>
-
-          </ul>
-
-          <button
-            type="button"
-            class="button button-gold"
-            id="footerSellerButton"
-          >
-            Get started as a seller
-          </button>
-
-        </div>
-
-
-        <div class="seller-promotion-visual">
-
-          <img
-            src="https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=1000&q=85"
-            alt="Agricultural production and farming"
-            loading="lazy"
-          >
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         MARKETPLACE SAFETY
-    ==================================================== -->
-
-    <section
-      class="section safety-section"
-      id="safety"
-    >
-
-      <div class="container safety-layout">
-
-        <div class="safety-heading">
-
-          <span class="eyebrow">
-            TRADE WITH CARE
-          </span>
-
-          <h2>
-            Make informed marketplace decisions.
-          </h2>
-
-          <p>
-            Product information and seller details help you
-            make decisions, but you should independently
-            verify important transaction details.
-          </p>
-
-        </div>
-
-
-        <div class="safety-items">
-
-          <article class="safety-item">
-
-            <span aria-hidden="true">✓</span>
-
-            <div>
-
-              <h3>Verify product details</h3>
-
-              <p>
-                Confirm product availability, quantity,
-                condition and price with the seller.
-              </p>
-
-            </div>
-
-          </article>
-
-
-          <article class="safety-item">
-
-            <span aria-hidden="true">✓</span>
-
-            <div>
-
-              <h3>Confirm seller information</h3>
-
-              <p>
-                Review available storefront details and
-                ask appropriate questions before proceeding.
-              </p>
-
-            </div>
-
-          </article>
-
-
-          <article class="safety-item">
-
-            <span aria-hidden="true">✓</span>
-
-            <div>
-
-              <h3>Protect your account</h3>
-
-              <p>
-                Never share your password, verification codes
-                or sensitive financial credentials.
-              </p>
-
-            </div>
-
-          </article>
-
-
-          <article class="safety-item">
-
-            <span aria-hidden="true">✓</span>
-
-            <div>
-
-              <h3>Understand payment status</h3>
-
-              <p>
-                Do not treat an order request as proof of
-                payment. Online payments require a verified
-                payment-provider integration.
-              </p>
-
-            </div>
-
-          </article>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         PROFILE PAGE
-         This is a dedicated profile area, not just a button.
-    ==================================================== -->
-
-    <section
-      class="section account-page"
-      id="profile"
-      hidden
-    >
-
-      <div class="container">
-
-        <div class="account-page-heading">
-
-          <div>
-
-            <span class="eyebrow">
-              YOUR ACCOUNT
-            </span>
-
-            <h1>My profile</h1>
-
-            <p>
-              View and manage your personal information.
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            class="button button-outline"
-            data-page="dashboard"
-          >
-            Open dashboard
-          </button>
-
-        </div>
-
-
-        <div class="profile-layout">
-
-          <aside class="profile-summary-card">
-
-            <div
-              class="profile-avatar-large"
-              id="profileAvatar"
-              aria-hidden="true"
-            >
-              U
-            </div>
-
-            <h2 id="profileDisplayName">
-              Your name
-            </h2>
-
-            <p id="profileEmail">
-              Your account email
-            </p>
-
-            <span
-              class="status-badge"
-              id="profileAccountStatus"
-            >
-              Account status
-            </span>
-
-            <span
-              class="status-badge"
-              id="profileSellerStatus"
-              hidden
-            >
-              Seller status
-            </span>
-
-            <button
-              type="button"
-              class="button button-outline profile-dashboard-button"
-              data-page="dashboard"
-            >
-              Go to my dashboard
-            </button>
-
-          </aside>
-
-
-          <div class="profile-details-card">
-
-            <div class="profile-card-heading">
-
-              <div>
-
-                <h2>Personal information</h2>
-
-                <p>
-                  Update your contact and profile details.
-                </p>
-
-              </div>
-
-            </div>
-
-
-            <form id="profileForm">
-
-              <div class="form-grid">
-
-                <div class="form-group">
-
-                  <label for="profileName">
-                    Full name
-                  </label>
-
-                  <input
-                    type="text"
-                    id="profileName"
-                    name="displayName"
-                    autocomplete="name"
-                    maxlength="100"
-                    required
-                  >
-
-                </div>
-
-
-                <div class="form-group">
-
-                  <label for="profileEmailField">
-                    Email address
-                  </label>
-
-                  <input
-                    type="email"
-                    id="profileEmailField"
-                    name="email"
-                    autocomplete="email"
-                    readonly
-                    aria-describedby="emailHelp"
-                  >
-
-                  <small id="emailHelp">
-                    Your email is managed through your
-                    authentication account.
-                  </small>
-
-                </div>
-
-
-                <div class="form-group">
-
-                  <label for="profilePhone">
-                    Phone number
-                  </label>
-
-                  <input
-                    type="tel"
-                    id="profilePhone"
-                    name="phone"
-                    autocomplete="tel"
-                    maxlength="30"
-                    placeholder="Your contact number"
-                  >
-
-                </div>
-
-
-                <div class="form-group">
-
-                  <label for="profileLocation">
-                    Location
-                  </label>
-
-                  <input
-                    type="text"
-                    id="profileLocation"
-                    name="location"
-                    autocomplete="address-level2"
-                    maxlength="150"
-                    placeholder="Town, LGA, State"
-                  >
-
-                </div>
-
-
-                <div class="form-group form-group-full">
-
-                  <label for="profileAccountType">
-                    Account type
-                  </label>
-
-                  <input
-                    type="text"
-                    id="profileAccountType"
-                    readonly
-                    aria-describedby="accountTypeHelp"
-                  >
-
-                  <small id="accountTypeHelp">
-                    Seller permissions depend on the actual
-                    seller approval status.
-                  </small>
-
-                </div>
-
-              </div>
-
-
-              <div
-                id="profileFormMessage"
-                class="form-message"
-                role="status"
-                aria-live="polite"
-              ></div>
-
-
-              <button
-                type="submit"
-                class="button button-primary"
-                id="saveProfileButton"
-              >
-                Save profile changes
-              </button>
-
-            </form>
-
-
-            <div class="profile-security-section">
-
-              <h3>Account security</h3>
-
-              <p>
-                Manage your password and email verification.
-              </p>
-
-              <div class="profile-security-actions">
-
-                <button
-                  type="button"
-                  class="button button-outline"
-                  id="profileResetPasswordButton"
-                >
-                  Reset password
-                </button>
-
-                <button
-                  type="button"
-                  class="button button-outline"
-                  id="profileVerifyEmailButton"
-                >
-                  Verify email
-                </button>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-    <!-- ===================================================
-         USER DASHBOARD
-    ==================================================== -->
-
-    <section
-      class="section dashboard-section"
-      id="dashboard"
-      hidden
-    >
-
-      <div class="container dashboard-container">
-
-
-        <div class="dashboard-heading">
-
-          <div>
-
-            <span class="eyebrow">
-              YOUR POULTRYLINK ACCOUNT
-            </span>
-
-            <h1>
-              Welcome back,
-              <span id="dashboardWelcomeName">User</span>
-            </h1>
-
-            <p>
-              Manage your profile and marketplace activities
-              from one place.
-            </p>
-
-          </div>
-
-
-          <div class="dashboard-heading-actions">
-
-            <span
-              class="signed-in-indicator"
-              id="dashboardSignedInStatus"
-              role="status"
-            >
-              <span aria-hidden="true">●</span>
-              Signed in
-            </span>
-
-            <button
-              type="button"
-              class="button button-primary"
-              id="dashboardBrowseButton"
-            >
-              Browse marketplace
-            </button>
-
-          </div>
-
-        </div>
-
-
-
-        <div class="dashboard-layout">
-
-
-          <!-- DASHBOARD SIDEBAR -->
-
-          <aside
-            class="dashboard-sidebar"
-            aria-label="Dashboard navigation"
-          >
-
-            <div class="dashboard-user-card">
-
-              <span
-                class="dashboard-user-avatar"
-                id="dashboardAvatar"
-                aria-hidden="true"
-              >
-                U
-              </span>
-
-              <div class="dashboard-user-info">
-
-                <strong id="dashboardUserName">
-                  Your name
-                </strong>
-
-                <span id="dashboardUserEmail">
-                  Your email
-                </span>
-
-                <span
-                  class="status-badge"
-                  id="dashboardUserType"
-                >
-                  Buyer account
-                </span>
-
-              </div>
-
-            </div>
 
 
             <nav
-              class="dashboard-nav"
-              id="dashboardNav"
-              aria-label="Account sections"
+                class="main-nav"
+                id="mainNav"
+                aria-label="Main navigation"
             >
+                <a href="#home">Home</a>
 
-              <button
-                type="button"
-                class="dashboard-nav-item active"
-                data-tab="overview"
-                aria-current="page"
-              >
-                <span aria-hidden="true">▦</span>
-                Overview
-              </button>
+                <a href="#marketplace">Marketplace</a>
 
+                <a href="#categories">Categories</a>
 
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="profile"
-              >
-                <span aria-hidden="true">♙</span>
-                Profile
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="activity"
-              >
-                <span aria-hidden="true">◷</span>
-                Activity
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="notifications"
-              >
-                <span aria-hidden="true">♧</span>
-                Notifications
-
-                <span
-                  class="nav-count"
-                  id="notificationCount"
-                  hidden
-                >
-                  0
-                </span>
-
-              </button>
-
-
-              <div class="dashboard-nav-divider"></div>
-
-
-              <span class="dashboard-nav-label">
-                BUYER
-              </span>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="buyer-orders"
-              >
-                <span aria-hidden="true">▤</span>
-                Buyer orders
-
-                <span
-                  class="nav-count"
-                  id="buyerOrderCount"
-                  hidden
-                >
-                  0
-                </span>
-
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="saved"
-              >
-                <span aria-hidden="true">♡</span>
-                Saved products
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="cart"
-              >
-                <span aria-hidden="true">🛒</span>
-                Shopping cart
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="messages"
-              >
-                <span aria-hidden="true">✉</span>
-                Messages
-              </button>
-
-
-              <div class="dashboard-nav-divider"></div>
-
-
-              <span class="dashboard-nav-label">
-                SELLER
-              </span>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="storefront"
-              >
-                <span aria-hidden="true">⌂</span>
-                Storefront
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="listings"
-              >
-                <span aria-hidden="true">▧</span>
-                My listings
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="inventory"
-              >
-                <span aria-hidden="true">▥</span>
-                Inventory
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="seller-orders"
-              >
-                <span aria-hidden="true">▣</span>
-                Seller orders
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="seller-application"
-              >
-                <span aria-hidden="true">＋</span>
-                Seller application
-              </button>
-
-
-              <div class="dashboard-nav-divider"></div>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item"
-                data-tab="settings"
-              >
-                <span aria-hidden="true">⚙</span>
-                Settings
-              </button>
-
-
-              <button
-                type="button"
-                class="dashboard-nav-item dashboard-signout"
-                id="dashboardSignOutButton"
-              >
-                <span aria-hidden="true">↪</span>
-                Sign out
-              </button>
-
+                <a href="#how-it-works">How It Works</a>
             </nav>
 
-          </aside>
 
+            <div class="header-actions">
 
+                <button
+                    class="button button-outline"
+                    id="loginButton"
+                    type="button"
+                >
+                    Log In
+                </button>
 
-          <!-- DASHBOARD CONTENT -->
-
-          <div class="dashboard-main">
-
-            <div
-              class="dashboard-content-heading"
-              id="dashboardContentHeading"
-            >
-
-              <h2 id="dashboardSectionTitle">
-                Overview
-              </h2>
-
-              <p id="dashboardSectionDescription">
-                An overview of your marketplace account.
-              </p>
+                <button
+                    class="button button-primary"
+                    id="registerButton"
+                    type="button"
+                >
+                    Join POULTRYLINK
+                </button>
 
             </div>
 
+        </div>
+    </header>
 
-            <!-- JavaScript renders the selected dashboard tab. -->
 
-            <div
-              class="dashboard-content"
-              id="dashboardContent"
-              aria-live="polite"
-              aria-busy="false"
-            >
+    <main>
 
-              <div class="loading-state">
-                Loading your account information...
-              </div>
+        <!-- HERO SECTION -->
+        <section class="hero" id="home">
+
+            <div class="container hero-grid">
+
+                <div class="hero-content">
+
+                    <span class="eyebrow">
+                        NIGERIA'S POULTRY MARKETPLACE
+                    </span>
+
+                    <h1>
+                        Your poultry business,
+                        <span>connected.</span>
+                    </h1>
+
+                    <p class="hero-description">
+                        Discover poultry products, connect with
+                        farmers, find suppliers and grow your
+                        business with POULTRYLINK.
+                    </p>
+
+
+                    <!-- SEARCH FORM -->
+                    <form
+                        class="hero-search"
+                        id="searchForm"
+                        role="search"
+                    >
+
+                        <label
+                            class="visually-hidden"
+                            for="searchInput"
+                        >
+                            Search poultry products
+                        </label>
+
+                        <input
+                            type="search"
+                            id="searchInput"
+                            name="search"
+                            placeholder="Search chickens, eggs, feeds..."
+                            autocomplete="off"
+                        >
+
+                        <button
+                            class="button button-primary"
+                            type="submit"
+                        >
+                            Search
+                        </button>
+
+                    </form>
+
+
+                    <div class="hero-highlights">
+                        <span>✓ Explore poultry products</span>
+
+                        <span>✓ Connect with sellers</span>
+
+                        <span>✓ Shop across Nigeria</span>
+                    </div>
+
+                </div>
+
+
+                <div class="hero-visual">
+
+                    <div class="hero-image-card">
+
+                        <span
+                            class="hero-emoji"
+                            aria-hidden="true"
+                        >
+                            🐓
+                        </span>
+
+                        <div class="hero-image-caption">
+
+                            <span class="caption-label">
+                                WELCOME TO
+                            </span>
+
+                            <h2>POULTRYLINK</h2>
+
+                            <p>
+                                From farm to marketplace.
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="floating-badge">
+
+                        <span aria-hidden="true">🌾</span>
+
+                        <div>
+                            <strong>One community</strong>
+
+                            <small>Many opportunities</small>
+                        </div>
+
+                    </div>
+
+                </div>
 
             </div>
 
-
-            <div
-              id="dashboardError"
-              class="form-message"
-              role="alert"
-              hidden
-            ></div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
+        </section>
 
 
 
-    <!-- ===================================================
-         SELLER STOREFRONT PAGE
-    ==================================================== -->
-
-    <section
-      class="section storefront-page"
-      id="storefrontPage"
-      hidden
-    >
-
-      <div class="container">
-
-        <div class="storefront-back">
-
-          <button
-            type="button"
-            class="text-link"
-            data-page="marketplace"
-          >
-            ← Back to marketplace
-          </button>
-
-        </div>
-
-
-        <div
-          class="storefront-header"
-          id="storefrontHeader"
+        <!-- CATEGORIES -->
+        <section
+            class="section categories-section"
+            id="categories"
         >
 
-          <div
-            class="storefront-cover"
-            id="storefrontCover"
-          ></div>
+            <div class="container">
+
+                <div class="section-heading">
+
+                    <div>
+                        <span class="eyebrow">
+                            EXPLORE THE MARKET
+                        </span>
+
+                        <h2>Browse Categories</h2>
+
+                        <p>
+                            Find what your poultry business needs.
+                        </p>
+                    </div>
+
+                </div>
 
 
-          <div class="storefront-profile-row">
+                <div class="category-grid">
 
-            <div
-              class="storefront-avatar"
-              id="storefrontAvatar"
-              aria-hidden="true"
-            >
-              S
+                    <button
+                        class="category-card"
+                        data-category="Live Birds"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        <span
+                            class="category-icon"
+                            aria-hidden="true"
+                        >
+                            🐔
+                        </span>
+
+                        <span class="category-name">
+                            Live Birds
+                        </span>
+
+                        <span class="category-description">
+                            Broilers and layers
+                        </span>
+                    </button>
+
+
+                    <button
+                        class="category-card"
+                        data-category="Eggs"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        <span
+                            class="category-icon"
+                            aria-hidden="true"
+                        >
+                            🥚
+                        </span>
+
+                        <span class="category-name">
+                            Eggs
+                        </span>
+
+                        <span class="category-description">
+                            Fresh poultry eggs
+                        </span>
+                    </button>
+
+
+                    <button
+                        class="category-card"
+                        data-category="Feeds"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        <span
+                            class="category-icon"
+                            aria-hidden="true"
+                        >
+                            🌾
+                        </span>
+
+                        <span class="category-name">
+                            Poultry Feeds
+                        </span>
+
+                        <span class="category-description">
+                            Feed and nutrition
+                        </span>
+                    </button>
+
+
+                    <button
+                        class="category-card"
+                        data-category="Equipment"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        <span
+                            class="category-icon"
+                            aria-hidden="true"
+                        >
+                            🧰
+                        </span>
+
+                        <span class="category-name">
+                            Equipment
+                        </span>
+
+                        <span class="category-description">
+                            Farm essentials
+                        </span>
+                    </button>
+
+
+                    <button
+                        class="category-card"
+                        data-category="Day-Old Chicks"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        <span
+                            class="category-icon"
+                            aria-hidden="true"
+                        >
+                            🐣
+                        </span>
+
+                        <span class="category-name">
+                            Day-Old Chicks
+                        </span>
+
+                        <span class="category-description">
+                            Start your flock
+                        </span>
+                    </button>
+
+
+                    <button
+                        class="category-card"
+                        data-category="Services"
+                        type="button"
+                        aria-pressed="false"
+                    >
+                        <span
+                            class="category-icon"
+                            aria-hidden="true"
+                        >
+                            🤝
+                        </span>
+
+                        <span class="category-name">
+                            Services
+                        </span>
+
+                        <span class="category-description">
+                            Poultry professionals
+                        </span>
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- MARKETPLACE -->
+        <section
+            class="section marketplace-section"
+            id="marketplace"
+        >
+
+            <div class="container">
+
+                <div class="section-heading marketplace-heading">
+
+                    <div>
+                        <span class="eyebrow">
+                            THE MARKETPLACE
+                        </span>
+
+                        <h2>Discover Poultry Products</h2>
+
+                        <p>
+                            Explore products listed by poultry sellers.
+                        </p>
+                    </div>
+
+
+                    <button
+                        class="button button-outline"
+                        id="clearFiltersButton"
+                        type="button"
+                    >
+                        View All Products
+                    </button>
+
+                </div>
+
+
+
+                <!-- MARKETPLACE FILTERS -->
+                <div class="marketplace-toolbar">
+
+                    <label
+                        for="categoryFilter"
+                        class="filter-label"
+                    >
+                        Category
+                    </label>
+
+                    <select id="categoryFilter">
+
+                        <option value="All">
+                            All Categories
+                        </option>
+
+                        <option value="Live Birds">
+                            Live Birds
+                        </option>
+
+                        <option value="Eggs">
+                            Eggs
+                        </option>
+
+                        <option value="Feeds">
+                            Poultry Feeds
+                        </option>
+
+                        <option value="Equipment">
+                            Equipment
+                        </option>
+
+                        <option value="Day-Old Chicks">
+                            Day-Old Chicks
+                        </option>
+
+                        <option value="Services">
+                            Services
+                        </option>
+
+                    </select>
+
+
+
+                    <label
+                        for="sortFilter"
+                        class="filter-label"
+                    >
+                        Sort By
+                    </label>
+
+                    <select id="sortFilter">
+
+                        <option value="featured">
+                            Featured
+                        </option>
+
+                        <option value="price-low">
+                            Price: Low to High
+                        </option>
+
+                        <option value="price-high">
+                            Price: High to Low
+                        </option>
+
+                        <option value="name">
+                            Product Name
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+
+                <!-- PRODUCTS ARE RENDERED BY JAVASCRIPT -->
+                <div
+                    class="product-grid"
+                    id="productGrid"
+                    aria-live="polite"
+                    aria-busy="true"
+                >
+
+                    <div class="loading-message">
+                        Loading marketplace...
+                    </div>
+
+                </div>
+
+
+
+                <div class="marketplace-footer">
+
+                    <p id="productCount">
+                        Discover poultry products.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- SELLER PROMOTION -->
+        <section class="seller-promotion">
+
+            <div class="container seller-promotion-content">
+
+                <div>
+
+                    <span class="eyebrow">
+                        FOR POULTRY SELLERS
+                    </span>
+
+                    <h2>
+                        Bring Your Poultry Business Online.
+                    </h2>
+
+                    <p>
+                        Create your seller profile, showcase your
+                        products and help more customers discover
+                        your business.
+                    </p>
+
+                </div>
+
+
+                <button
+                    class="button button-light"
+                    id="becomeSellerButton"
+                    type="button"
+                >
+                    Start Selling
+                </button>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- HOW IT WORKS -->
+        <section
+            class="section how-section"
+            id="how-it-works"
+        >
+
+            <div class="container">
+
+                <div class="section-heading centered-heading">
+
+                    <span class="eyebrow">
+                        SIMPLE AND CONVENIENT
+                    </span>
+
+                    <h2>How POULTRYLINK Works</h2>
+
+                    <p>
+                        Find products and connect with poultry
+                        businesses in a few simple steps.
+                    </p>
+
+                </div>
+
+
+
+                <div class="steps-grid">
+
+                    <article class="step-card">
+
+                        <span class="step-number">
+                            01
+                        </span>
+
+                        <div
+                            class="step-icon"
+                            aria-hidden="true"
+                        >
+                            🔎
+                        </div>
+
+                        <h3>Discover</h3>
+
+                        <p>
+                            Browse categories and explore available
+                            poultry products.
+                        </p>
+
+                    </article>
+
+
+
+                    <article class="step-card">
+
+                        <span class="step-number">
+                            02
+                        </span>
+
+                        <div
+                            class="step-icon"
+                            aria-hidden="true"
+                        >
+                            🤝
+                        </div>
+
+                        <h3>Connect</h3>
+
+                        <p>
+                            Find sellers and learn more about their
+                            products and businesses.
+                        </p>
+
+                    </article>
+
+
+
+                    <article class="step-card">
+
+                        <span class="step-number">
+                            03
+                        </span>
+
+                        <div
+                            class="step-icon"
+                            aria-hidden="true"
+                        >
+                            📦
+                        </div>
+
+                        <h3>Get Started</h3>
+
+                        <p>
+                            Contact the seller and agree on order,
+                            delivery and payment arrangements.
+                        </p>
+
+                    </article>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- SAFETY NOTICE -->
+        <section class="safety-section">
+
+            <div class="container safety-content">
+
+                <span
+                    class="safety-icon"
+                    aria-hidden="true"
+                >
+                    🛡️
+                </span>
+
+                <div>
+
+                    <h2>Trade With Care</h2>
+
+                    <p>
+                        Confirm seller details, product availability,
+                        delivery arrangements and payment terms
+                        before completing a transaction. Never rely
+                        on an unverified payment screenshot as proof
+                        of payment.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+
+    <!-- FOOTER -->
+    <footer class="site-footer">
+
+        <div class="container">
+
+            <div class="footer-main">
+
+                <div class="footer-brand">
+
+                    <a
+                        href="#home"
+                        class="brand"
+                        aria-label="POULTRYLINK home"
+                    >
+                        <span
+                            class="brand-icon"
+                            aria-hidden="true"
+                        >
+                            🐔
+                        </span>
+
+                        <span class="brand-name">
+                            POULTRY<span>LINK</span>
+                        </span>
+                    </a>
+
+                    <p>
+                        Connecting poultry farmers, suppliers
+                        and buyers across Nigeria.
+                    </p>
+
+                </div>
+
+
+
+                <div class="footer-column">
+
+                    <h3>Marketplace</h3>
+
+                    <a href="#marketplace">
+                        Browse Products
+                    </a>
+
+                    <a href="#categories">
+                        Categories
+                    </a>
+
+                    <button
+                        id="footerSellerButton"
+                        type="button"
+                    >
+                        Become a Seller
+                    </button>
+
+                </div>
+
+
+
+                <div class="footer-column">
+
+                    <h3>About</h3>
+
+                    <a href="#how-it-works">
+                        How It Works
+                    </a>
+
+                    <a href="#home">
+                        Home
+                    </a>
+
+                </div>
+
             </div>
 
 
-            <div class="storefront-profile-info">
 
-              <h1 id="storefrontName">
-                Seller storefront
-              </h1>
+            <div class="footer-bottom">
 
-              <p id="storefrontLocation">
-                Seller location
-              </p>
+                <p>
+                    &copy;
+                    <span id="currentYear"></span>
+                    POULTRYLINK. All rights reserved.
+                </p>
 
-              <p id="storefrontDescription">
-                Seller information
-              </p>
-
-              <span
-                class="status-badge"
-                id="storefrontVerificationStatus"
-                hidden
-              >
-                Verification status
-              </span>
+                <p>
+                    Built for Nigeria's poultry community.
+                </p>
 
             </div>
 
-          </div>
-
         </div>
 
+    </footer>
 
-        <div class="section-heading">
 
-          <div>
 
-            <h2>Available products</h2>
-
-            <p>
-              Products published by this seller.
-            </p>
-
-          </div>
-
-        </div>
-
-
-        <div
-          class="product-grid"
-          id="storefrontProducts"
-        ></div>
-
-
-        <div
-          class="empty-state"
-          id="storefrontProductsEmpty"
-          hidden
-        >
-
-          <h3>No available products</h3>
-
-          <p>
-            This storefront currently has no active product listings.
-          </p>
-
-        </div>
-
-      </div>
-
-    </section>
-
-
-
-  </main>
-
-
-
-  <!-- =====================================================
-       FOOTER
-  ====================================================== -->
-
-  <footer class="site-footer">
-
-    <div class="container">
-
-      <div class="footer-grid">
-
-
-        <div class="footer-brand-column">
-
-          <a
-            href="#home"
-            class="brand footer-brand"
-            aria-label="POULTRYLINK homepage"
-          >
-
-            <span class="brand-mark" aria-hidden="true">P</span>
-
-            <span class="brand-copy">
-              <strong>POULTRYLINK</strong>
-              <small>Nigeria's Poultry Marketplace</small>
-            </span>
-
-          </a>
-
-
-          <p>
-            Connecting Nigerian poultry farmers, product
-            sellers and buyers through one marketplace.
-          </p>
-
-        </div>
-
-
-
-        <div class="footer-column">
-
-          <h3>Marketplace</h3>
-
-          <a href="#marketplace">Browse products</a>
-
-          <a href="#categories">Product categories</a>
-
-          <a href="#sellers">Seller directory</a>
-
-          <a href="#how-it-works">How it works</a>
-
-        </div>
-
-
-
-        <div class="footer-column">
-
-          <h3>Your account</h3>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            id="footerLoginButton"
-          >
-            Sign in
-          </button>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            id="footerRegisterButton"
-          >
-            Create account
-          </button>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            data-page="profile"
-          >
-            My profile
-          </button>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            data-page="dashboard"
-          >
-            My dashboard
-          </button>
-
-        </div>
-
-
-
-        <div class="footer-column">
-
-          <h3>Information</h3>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            data-legal="about"
-          >
-            About POULTRYLINK
-          </button>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            data-legal="safety"
-          >
-            Marketplace safety
-          </button>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            data-legal="privacy"
-          >
-            Privacy information
-          </button>
-
-          <button
-            type="button"
-            class="footer-link-button"
-            data-legal="terms"
-          >
-            Terms of use
-          </button>
-
-        </div>
-
-
-      </div>
-
-
-      <div class="footer-bottom">
-
-        <p>
-          © <span id="year"></span> POULTRYLINK.
-          Nigeria's Poultry Marketplace.
-        </p>
-
-        <p>
-          Trade carefully. Verify products and sellers.
-        </p>
-
-      </div>
-
-    </div>
-
-  </footer>
-
-
-
-  <!-- =====================================================
-       GLOBAL MODAL
-  ====================================================== -->
-
-  <div
-    class="modal-backdrop"
-    id="modalBackdrop"
-    aria-hidden="true"
-  >
-
-    <section
-      class="modal"
-      id="mainModal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modalTitle"
-      aria-describedby="modalMessage"
-      tabindex="-1"
-    >
-
-      <div class="modal-header">
-
-        <div class="modal-heading">
-
-          <h2 id="modalTitle">
-            POULTRYLINK
-          </h2>
-
-        </div>
-
-
-        <button
-          type="button"
-          class="modal-close"
-          id="modalClose"
-          aria-label="Close dialog"
-        >
-          &times;
-        </button>
-
-      </div>
-
-
-      <div class="modal-body">
-
-        <p
-          id="modalMessage"
-          class="modal-message"
-        ></p>
-
-        <div id="modalContent"></div>
-
-      </div>
-
-    </section>
-
-  </div>
-
-
-
-  <!-- =====================================================
-       PRODUCT DETAILS DIALOG
-  ====================================================== -->
-
-  <dialog
-    class="native-dialog product-dialog"
-    id="productDetailsDialog"
-    aria-labelledby="productDetailsTitle"
-  >
-
-    <div class="dialog-header">
-
-      <h2 id="productDetailsTitle">
-        Product details
-      </h2>
-
-      <button
-        type="button"
-        class="dialog-close"
-        data-close-dialog="productDetailsDialog"
-        aria-label="Close product details"
-      >
-        &times;
-      </button>
-
-    </div>
-
-
+    <!-- MODAL -->
     <div
-      id="productDetailsContent"
-      class="dialog-content"
+        class="modal-backdrop"
+        id="modalBackdrop"
+        aria-hidden="true"
+    >
+
+        <section
+            class="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modalTitle"
+        >
+
+            <button
+                class="modal-close"
+                id="modalClose"
+                type="button"
+                aria-label="Close dialog"
+            >
+                &times;
+            </button>
+
+            <div id="modalContent">
+
+                <h2 id="modalTitle">
+                    Welcome to POULTRYLINK
+                </h2>
+
+                <p id="modalMessage">
+                    Connect with Nigeria's poultry community.
+                </p>
+
+            </div>
+
+        </section>
+
+    </div>
+
+
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div
+        class="toast-container"
+        id="toastContainer"
+        aria-live="polite"
+        aria-atomic="true"
     ></div>
-
-  </dialog>
-
-
-
-  <!-- =====================================================
-       PRODUCT LISTING FORM
-  ====================================================== -->
-
-  <dialog
-    class="native-dialog listing-dialog"
-    id="listingDialog"
-    aria-labelledby="listingDialogTitle"
-  >
-
-    <div class="dialog-header">
-
-      <div>
-
-        <h2 id="listingDialogTitle">
-          Create a listing
-        </h2>
-
-        <p>
-          Provide accurate details about your product.
-        </p>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="dialog-close"
-        data-close-dialog="listingDialog"
-        aria-label="Close listing form"
-      >
-        &times;
-      </button>
-
-    </div>
-
-
-    <div class="dialog-content">
-
-      <form id="listingForm">
-
-        <input
-          type="hidden"
-          id="listingId"
-          name="listingId"
-        >
-
-
-        <div class="form-group">
-
-          <label for="listingTitle">
-            Product name
-          </label>
-
-          <input
-            type="text"
-            id="listingTitle"
-            name="title"
-            maxlength="150"
-            required
-            placeholder="Enter the actual product name"
-          >
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="listingDescription">
-            Product description
-          </label>
-
-          <textarea
-            id="listingDescription"
-            name="description"
-            maxlength="5000"
-            rows="5"
-            required
-            placeholder="Describe the product accurately"
-          ></textarea>
-
-        </div>
-
-
-        <div class="form-grid">
-
-          <div class="form-group">
-
-            <label for="listingCategory">
-              Category
-            </label>
-
-            <select
-              id="listingCategory"
-              name="category"
-              required
-            >
-
-              <option value="">Choose a category</option>
-
-              <option value="Live Birds">Live Birds</option>
-
-              <option value="Eggs">Eggs</option>
-
-              <option value="Feeds">Poultry Feed</option>
-
-              <option value="Equipment">Equipment</option>
-
-              <option value="Day-Old Chicks">
-                Day-Old Chicks
-              </option>
-
-              <option value="Services">Services</option>
-
-            </select>
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label for="listingPrice">
-              Price in naira (₦)
-            </label>
-
-            <input
-              type="number"
-              id="listingPrice"
-              name="price"
-              min="0.01"
-              step="0.01"
-              inputmode="decimal"
-              required
-              placeholder="0.00"
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label for="listingQuantity">
-              Available quantity
-            </label>
-
-            <input
-              type="number"
-              id="listingQuantity"
-              name="quantity"
-              min="0"
-              step="1"
-              inputmode="numeric"
-              required
-              placeholder="Enter available stock"
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label for="listingUnit">
-              Quantity unit
-            </label>
-
-            <select
-              id="listingUnit"
-              name="unit"
-              required
-            >
-
-              <option value="">Choose a unit</option>
-
-              <option value="bird">Bird</option>
-
-              <option value="birds">Birds</option>
-
-              <option value="crate">Crate</option>
-
-              <option value="crates">Crates</option>
-
-              <option value="bag">Bag</option>
-
-              <option value="bags">Bags</option>
-
-              <option value="piece">Piece</option>
-
-              <option value="pieces">Pieces</option>
-
-              <option value="kg">Kilogram</option>
-
-              <option value="tonne">Tonne</option>
-
-              <option value="service">Service</option>
-
-            </select>
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label for="listingState">
-              State
-            </label>
-
-            <input
-              type="text"
-              id="listingState"
-              name="state"
-              maxlength="80"
-              required
-              placeholder="e.g. Rivers State"
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label for="listingTown">
-              Town or LGA
-            </label>
-
-            <input
-              type="text"
-              id="listingTown"
-              name="town"
-              maxlength="100"
-              required
-              placeholder="Enter location"
-            >
-
-          </div>
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="listingImage">
-            Product image URL
-          </label>
-
-          <input
-            type="url"
-            id="listingImage"
-            name="imageUrl"
-            maxlength="2000"
-            placeholder="https://..."
-          >
-
-          <small>
-            Image uploads require configured storage.
-            Only use an image you have permission to publish.
-          </small>
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="listingStatus">
-            Listing status
-          </label>
-
-          <select
-            id="listingStatus"
-            name="status"
-            required
-          >
-
-            <option value="pending_review">
-              Submit for review
-            </option>
-
-            <option value="paused">
-              Paused
-            </option>
-
-          </select>
-
-          <small>
-            Publication permissions and review requirements
-            must be enforced by the backend.
-          </small>
-
-        </div>
-
-
-        <div
-          class="form-message"
-          id="listingFormMessage"
-          role="status"
-          aria-live="polite"
-        ></div>
-
-
-        <div class="dialog-actions">
-
-          <button
-            type="button"
-            class="button button-outline"
-            data-close-dialog="listingDialog"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="button button-primary"
-            id="saveListingButton"
-          >
-            Save listing
-          </button>
-
-        </div>
-
-      </form>
-
-    </div>
-
-  </dialog>
-
-
-
-  <!-- =====================================================
-       SHOPPING CART DIALOG
-  ====================================================== -->
-
-  <dialog
-    class="native-dialog cart-dialog"
-    id="cartDialog"
-    aria-labelledby="cartDialogTitle"
-  >
-
-    <div class="dialog-header">
-
-      <div>
-
-        <h2 id="cartDialogTitle">
-          Your shopping cart
-        </h2>
-
-        <p>
-          Review your selected products.
-        </p>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="dialog-close"
-        data-close-dialog="cartDialog"
-        aria-label="Close shopping cart"
-      >
-        &times;
-      </button>
-
-    </div>
-
-
-    <div class="dialog-content">
-
-      <div
-        id="cartItems"
-        class="cart-items"
-        aria-live="polite"
-      >
-
-        <div class="empty-state">
-
-          <h3>Your cart is empty</h3>
-
-          <p>
-            Add products from the marketplace to get started.
-          </p>
-
-        </div>
-
-      </div>
-
-
-      <div
-        class="cart-summary"
-        id="cartSummary"
-      >
-
-        <div class="cart-summary-row">
-
-          <span>Subtotal</span>
-
-          <strong id="cartSubtotal">
-            ₦0.00
-          </strong>
-
-        </div>
-
-
-        <div class="cart-summary-row">
-
-          <span>Delivery</span>
-
-          <strong id="cartDelivery">
-            To be agreed
-          </strong>
-
-        </div>
-
-
-        <div class="cart-summary-row cart-total-row">
-
-          <span>Estimated total</span>
-
-          <strong id="cartTotal">
-            ₦0.00
-          </strong>
-
-        </div>
-
-
-        <p class="cart-summary-note">
-          The displayed total is an estimate. Final order
-          pricing and stock availability must be verified
-          by the backend before an order is accepted.
-        </p>
-
-
-        <button
-          type="button"
-          class="button button-primary button-full"
-          id="checkoutButton"
-        >
-          Continue to checkout
-        </button>
-
-      </div>
-
-    </div>
-
-  </dialog>
-
-
-
-  <!-- =====================================================
-       CHECKOUT DIALOG
-  ====================================================== -->
-
-  <dialog
-    class="native-dialog checkout-dialog"
-    id="checkoutDialog"
-    aria-labelledby="checkoutDialogTitle"
-  >
-
-    <div class="dialog-header">
-
-      <div>
-
-        <h2 id="checkoutDialogTitle">
-          Checkout
-        </h2>
-
-        <p>
-          Provide the information required for your order.
-        </p>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="dialog-close"
-        data-close-dialog="checkoutDialog"
-        aria-label="Close checkout"
-      >
-        &times;
-      </button>
-
-    </div>
-
-
-    <div class="dialog-content">
-
-      <div
-        id="checkoutReview"
-        class="checkout-review"
-      ></div>
-
-
-      <form id="checkoutForm">
-
-        <div class="form-group">
-
-          <label for="checkoutFullName">
-            Full name
-          </label>
-
-          <input
-            type="text"
-            id="checkoutFullName"
-            name="fullName"
-            autocomplete="name"
-            maxlength="100"
-            required
-          >
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="checkoutPhone">
-            Contact phone number
-          </label>
-
-          <input
-            type="tel"
-            id="checkoutPhone"
-            name="phone"
-            autocomplete="tel"
-            maxlength="30"
-            required
-          >
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="checkoutState">
-            Delivery state
-          </label>
-
-          <input
-            type="text"
-            id="checkoutState"
-            name="state"
-            maxlength="80"
-            required
-          >
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="checkoutAddress">
-            Delivery address or collection location
-          </label>
-
-          <textarea
-            id="checkoutAddress"
-            name="address"
-            rows="3"
-            maxlength="1000"
-            required
-          ></textarea>
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="checkoutNotes">
-            Additional instructions
-          </label>
-
-          <textarea
-            id="checkoutNotes"
-            name="notes"
-            rows="3"
-            maxlength="1500"
-            placeholder="Optional"
-          ></textarea>
-
-        </div>
-
-
-        <div class="checkout-payment-notice">
-
-          <strong>Payment information</strong>
-
-          <p>
-            Online payment is not confirmed merely by
-            submitting this form. Payment processing must
-            be connected to a payment provider and verified
-            securely on the server.
-          </p>
-
-        </div>
-
-
-        <div
-          id="checkoutFormMessage"
-          class="form-message"
-          role="status"
-          aria-live="polite"
-        ></div>
-
-
-        <div class="dialog-actions">
-
-          <button
-            type="button"
-            class="button button-outline"
-            data-close-dialog="checkoutDialog"
-          >
-            Go back
-          </button>
-
-          <button
-            type="submit"
-            class="button button-primary"
-            id="submitOrderButton"
-          >
-            Submit order request
-          </button>
-
-        </div>
-
-      </form>
-
-    </div>
-
-  </dialog>
-
-
-
-  <!-- =====================================================
-       MESSAGING DIALOG
-  ====================================================== -->
-
-  <dialog
-    class="native-dialog messaging-dialog"
-    id="messagingDialog"
-    aria-labelledby="messagingDialogTitle"
-  >
-
-    <div class="dialog-header">
-
-      <div>
-
-        <h2 id="messagingDialogTitle">
-          Messages
-        </h2>
-
-        <p id="messageConversationSubtitle">
-          Marketplace communication
-        </p>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="dialog-close"
-        data-close-dialog="messagingDialog"
-        aria-label="Close messages"
-      >
-        &times;
-      </button>
-
-    </div>
-
-
-    <div class="dialog-content">
-
-      <div
-        class="message-conversation"
-        id="messageConversation"
-        aria-live="polite"
-      >
-
-        <div class="empty-state">
-
-          <h3>No conversation selected</h3>
-
-          <p>
-            Choose a seller or an existing conversation to
-            view available messages.
-          </p>
-
-        </div>
-
-      </div>
-
-
-      <form
-        id="messageForm"
-        class="message-compose"
-      >
-
-        <label
-          for="messageInput"
-          class="visually-hidden"
-        >
-          Write your message
-        </label>
-
-        <textarea
-          id="messageInput"
-          name="message"
-          rows="3"
-          maxlength="3000"
-          required
-          placeholder="Write a message..."
-        ></textarea>
-
-
-        <button
-          type="submit"
-          class="button button-primary"
-          id="sendMessageButton"
-        >
-          Send message
-        </button>
-
-      </form>
-
-
-      <p class="form-help">
-        Message delivery requires a working, secured messaging
-        backend. The interface alone does not send messages.
-      </p>
-
-    </div>
-
-  </dialog>
-
-
-
-  <!-- =====================================================
-       SELLER APPLICATION DIALOG
-  ====================================================== -->
-
-  <dialog
-    class="native-dialog seller-application-dialog"
-    id="sellerApplicationDialog"
-    aria-labelledby="sellerApplicationTitle"
-  >
-
-    <div class="dialog-header">
-
-      <div>
-
-        <h2 id="sellerApplicationTitle">
-          Apply to become a seller
-        </h2>
-
-        <p>
-          Complete the application for manual review.
-        </p>
-
-      </div>
-
-
-      <button
-        type="button"
-        class="dialog-close"
-        data-close-dialog="sellerApplicationDialog"
-        aria-label="Close seller application"
-      >
-        &times;
-      </button>
-
-    </div>
-
-
-    <div class="dialog-content">
-
-      <form id="sellerApplicationForm">
-
-        <div class="form-group">
-
-          <label for="sellerLegalName">
-            Full or legal name
-          </label>
-
-          <input
-            type="text"
-            id="sellerLegalName"
-            name="legalName"
-            maxlength="150"
-            required
-          >
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="sellerPhone">
-            Phone number
-          </label>
-
-          <input
-            type="tel"
-            id="sellerPhone"
-            name="phone"
-            maxlength="30"
-            required
-          >
-
-        </div>
-
-
-        <div class="form-grid">
-
-          <div class="form-group">
-
-            <label for="sellerState">
-              State
-            </label>
-
-            <input
-              type="text"
-              id="sellerState"
-              name="state"
-              maxlength="80"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label for="sellerLga">
-              Local Government Area
-            </label>
-
-            <input
-              type="text"
-              id="sellerLga"
-              name="lga"
-              maxlength="100"
-              required
-            >
-
-          </div>
-
-        </div>
-
-
-        <div class="form-group">
-
-          <label for="sellerFarmLocation">
-            Farm or business location
-          </label>
-
-          <textarea
-            id="sellerFarmLocation"
-            name="farmLocation"
-            maxlength="500"
-            rows="3"
-            required
-          ></textarea>
-
-        </div>
-
-
-        <fieldset class="form-group">
-
-          <legend>
-            Products or services you intend to sell
-          </legend>
-
-
-          <label class="checkbox-option">
-
-            <input
-              type="checkbox"
-              name="intendedProducts"
-              value="Live Birds"
-            >
-
-            Live birds
-
-          </label>
-
-
-          <label class="checkbox-option">
-
-            <input
-              type="checkbox"
-              name="intendedProducts"
-              value="Eggs"
-            >
-
-            Eggs
-
-          </label>
-
-
-          <label class="checkbox-option">
-
-            <input
-              type="checkbox"
-              name="intendedProducts"
-              value="Feeds"
-            >
-
-            Poultry feed
-
-          </label>
-
-
-          <label class="checkbox-option">
-
-            <input
-              type="checkbox"
-              name="intendedProducts"
-              value="Equipment"
-            >
-
-            Equipment
-
-          </label>
-
-
-          <label class="checkbox-option">
-
-            <input
-              type="checkbox"
-              name="intendedProducts"
-              value="Day-Old Chicks"
-            >
-
-            Day-old chicks
-
-          </label>
-
-
-          <label class="checkbox-option">
-
-            <input
-              type="checkbox"
-              name="intendedProducts"
-              value="Services"
-            >
-
-            Services
-
-          </label>
-
-        </fieldset>
-
-
-        <div class="form-group">
-
-          <label for="sellerEvidence">
-            Supporting evidence URLs
-          </label>
-
-          <textarea
-            id="sellerEvidence"
-            name="evidence"
-            maxlength="3000"
-            rows="3"
-            placeholder="Provide relevant evidence links, if available"
-          ></textarea>
-
-          <small>
-            Evidence must be reviewed through the actual
-            seller-verification process.
-          </small>
-
-        </div>
-
-
-        <div
-          id="sellerApplicationMessage"
-          class="form-message"
-          role="status"
-          aria-live="polite"
-        ></div>
-
-
-        <div class="dialog-actions">
-
-          <button
-            type="button"
-            class="button button-outline"
-            data-close-dialog="sellerApplicationDialog"
-          >
-            Cancel
-          </button>
-
-          <button
-            type="submit"
-            class="button button-primary"
-            id="submitSellerApplicationButton"
-          >
-            Submit application
-          </button>
-
-        </div>
-
-      </form>
-
-    </div>
-
-  </dialog>
-
-
-
-  <!-- =====================================================
-       TOAST NOTIFICATIONS
-  ====================================================== -->
-
-  <div
-    class="toast-container"
-    id="toastContainer"
-    aria-live="polite"
-    aria-atomic="false"
-  ></div>
-
-
-
-  <!-- =====================================================
-       LIVE REGION FOR AUTHENTICATION STATUS
-  ====================================================== -->
-
-  <div
-    class="visually-hidden"
-    id="authenticationStatus"
-    role="status"
-    aria-live="polite"
-    aria-atomic="true"
-  ></div>
-
-
-
-  <!-- =====================================================
-       APPLICATION JAVASCRIPT
-  ====================================================== -->
-
-  <script type="module" src="main.js"></script>
 
 </body>
 </html>
