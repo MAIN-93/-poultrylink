@@ -1,2508 +1,4132 @@
-"use strict";
+/* =========================================================
+   POULTRYLINK — APPLICATION JAVASCRIPT
+   Firebase 11.10.0
+   Nigeria's Poultry Marketplace
+========================================================= */
 
-/*
- * POULTRYLINK — Firebase-connected marketplace.
- * Uses real Firestore records; no fake products or activity.
- * Secure checkout, messaging delivery, inventory enforcement,
- * and trusted administrator actions require backend implementation.
- */
 
-import { auth, db } from "./firebase-config.js";
+/* =========================================================
+   FIREBASE IMPORTS
+========================================================= */
 
 import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+
+import {
+  getAuth,
+  onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  sendEmailVerification,
-  sendPasswordResetEmail,
-  onAuthStateChanged,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 
 import {
+  getFirestore,
   collection,
-  query,
-  where,
+  addDoc,
   getDocs,
   doc,
   getDoc,
-  setDoc,
   updateDoc,
-  addDoc,
-  serverTimestamp
+  deleteDoc,
+  query,
+  where,
+  serverTimestamp,
+  setDoc,
+  orderBy,
+  limit
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
-const CATEGORIES = [
-  "Live Birds",
-  "Eggs",
-  "Feeds",
-  "Equipment",
-  "Day-Old Chicks",
-  "Services"
-];
 
-const CART_KEY = "poultrylink_cart_v1";
-const SAVED_KEY = "poultrylink_saved_v1";
+/* =========================================================
+   FIREBASE CONFIGURATION
+========================================================= */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDUBwgGhDHj-v6kBE5Dn3O_FxF8EfPPfy4",
+  authDomain: "poultrylink-2459a.firebaseapp.com",
+  projectId: "poultrylink-2459a",
+  storageBucket: "poultrylink-2459a.firebasestorage.app",
+  messagingSenderId: "332920290687",
+  appId: "1:332920290687:web:3e71c648817e1c07ba6e4a"
+};
+
+const app = initializeApp(firebaseConfig);
+
+const auth = getAuth(app);
+
+const db = getFirestore(app);
+
+
+/* =========================================================
+   APPLICATION CONFIGURATION
+========================================================= */
+
+const CONFIG = {
+  monthlyPrice: 1000,
+  yearlyPrice: 10000,
+
+  /*
+    This endpoint must be implemented on your secure backend.
+    It must initialize Paystack transactions using the secret key
+    stored on the server, never in this JavaScript file.
+  */
+
+  paymentEndpoint: "/api/payments/initialize",
+
+  currency: "NGN",
+
+  maxListingPrice: 1000000000
+};
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const $ = (selector, root = document) =>
+  root.querySelector(selector);
+
+const $$ = (selector, root = document) =>
+  [...root.querySelectorAll(selector)];
+
 
 const state = {
-  search: "",
-  category: "All",
-  sort: "featured",
-  products: [],
+  query: "",
+  category: "",
+  location: "",
+  sort: "newest",
+
+  listings: [],
+
   user: null,
   profile: null,
   seller: null,
-  loadingProducts: true,
-  productsError: false,
-  saved: readLocalArray(SAVED_KEY),
-  cart: readCart(),
-  authReady: false
+  subscription: null,
+
+  isAdmin: false,
+
+  authMode: "signin",
+  editingId: null,
+
+  dashboardOpen: false
 };
 
-function readLocalArray(key) {
-  try {
-    const value = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
+
+const grid = $("#listingGrid");
+
+const toast = $("#toast");
+
+let toastTimer;
+
+
+const categoryInfo = {
+  Eggs: {
+    emoji: "🥚",
+    art: "eggs"
+  },
+
+  Layers: {
+    emoji: "🐔",
+    art: "layers"
+  },
+
+  Broilers: {
+    emoji: "🍗",
+    art: "broilers"
+  },
+
+  Chicks: {
+    emoji: "🐣",
+    art: "chicks"
+  },
+
+  Feed: {
+    emoji: "🌾",
+    art: "feed"
+  },
+
+  Equipment: {
+    emoji: "🧰",
+    art: "equipment"
   }
-}
+};
 
-function readCart() {
-  try {
-    const value = JSON.parse(localStorage.getItem(CART_KEY) || "{}");
-
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? value
-      : {};
-  } catch {
-    return {};
-  }
-}
-
-function persistLocal() {
-  try {
-    localStorage.setItem(SAVED_KEY, JSON.stringify(state.saved));
-    localStorage.setItem(CART_KEY, JSON.stringify(state.cart));
-  } catch (error) {
-    console.warn("Could not save cart or favorites.", error);
-  }
-}
-
-function el(id) {
-  return document.getElementById(id);
-}
-
-function all(selector) {
-  return document.querySelectorAll(selector);
-}
 
 function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, character => ({
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
     '"': "&quot;",
     "'": "&#39;"
-  })[character]);
+  })[char]);
 }
+
 
 function formatNaira(value) {
-  return new Intl.NumberFormat("en-NG", {
-    style: "currency",
-    currency: "NGN",
-    maximumFractionDigits: 2
-  }).format(Number(value) || 0);
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "Price on request";
+  }
+
+  return "₦" + new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 0
+  }).format(number);
 }
 
-function toast(message, type = "success") {
-  const box = el("toastContainer");
 
-  if (!box) {
-    console.log(message);
+function normalisePhone(phone) {
+  return String(phone || "").replace(/[^\d]/g, "");
+}
+
+
+function showToast(message) {
+  if (!toast) return;
+
+  toast.textContent = message;
+
+  toast.classList.add("show");
+
+  clearTimeout(toastTimer);
+
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 3500);
+}
+
+
+function openDialog(id) {
+  const dialog = document.getElementById(id);
+
+  if (!dialog) return;
+
+  if (typeof dialog.showModal === "function") {
+    if (!dialog.open) dialog.showModal();
+  } else {
+    dialog.setAttribute("open", "");
+  }
+}
+
+
+function closeDialog(dialog) {
+  if (!dialog) return;
+
+  if (typeof dialog.close === "function") {
+    dialog.close();
+  } else {
+    dialog.removeAttribute("open");
+  }
+}
+
+
+function initials(name) {
+  return String(name || "P")
+    .trim()
+    .charAt(0)
+    .toUpperCase() || "P";
+}
+
+
+function categoryClass(category) {
+  return (categoryInfo[category] || categoryInfo.Equipment).art;
+}
+
+
+function categoryEmoji(category) {
+  return (categoryInfo[category] || categoryInfo.Equipment).emoji;
+}
+
+
+function setText(selector, value) {
+  const element = $(selector);
+
+  if (element) {
+    element.textContent = value ?? "";
+  }
+}
+
+
+function setHTML(selector, value) {
+  const element = $(selector);
+
+  if (element) {
+    element.innerHTML = value;
+  }
+}
+
+
+function setHidden(selector, hidden) {
+  const element = $(selector);
+
+  if (element) {
+    element.classList.toggle("hidden", hidden);
+  }
+}
+
+
+function showMessage(selector, message) {
+  setText(selector, message);
+}
+
+
+function timestampToMillis(value) {
+  if (value?.toMillis) {
+    return value.toMillis();
+  }
+
+  if (typeof value === "number") {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  return 0;
+}
+
+
+function isSubscriptionActive(subscription) {
+  if (!subscription) return false;
+
+  if (subscription.status !== "active") {
+    return false;
+  }
+
+  const expiry = timestampToMillis(
+    subscription.expiresAt
+  );
+
+  return expiry > Date.now();
+}
+
+
+function friendlyDate(value) {
+  const millis = timestampToMillis(value);
+
+  if (!millis) return "Not available";
+
+  return new Date(millis).toLocaleDateString(
+    "en-NG",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    }
+  );
+}
+
+
+function showError(error, fallback = "Something went wrong.") {
+  console.error(error);
+
+  return fallback;
+}
+
+
+/* =========================================================
+   FIRESTORE REFERENCES
+========================================================= */
+
+function userRef(uid = state.user?.uid) {
+  return doc(db, "users", uid);
+}
+
+
+function sellerRef(uid = state.user?.uid) {
+  return doc(db, "sellers", uid);
+}
+
+
+function subscriptionRef(uid = state.user?.uid) {
+  return doc(db, "subscriptions", uid);
+}
+
+
+/* =========================================================
+   MARKETPLACE SEARCH
+========================================================= */
+
+function getVisibleListings() {
+  const search = state.query.trim().toLowerCase();
+
+  let results = state.listings.filter(item => {
+
+    const searchable = [
+      item.title,
+      item.category,
+      item.description,
+      item.seller,
+      item.town,
+      item.state,
+      item.quantity
+    ].join(" ").toLowerCase();
+
+    const matchesSearch =
+      !search || searchable.includes(search);
+
+    const matchesCategory =
+      !state.category ||
+      item.category === state.category;
+
+    const matchesLocation =
+      !state.location ||
+      item.state === state.location;
+
+    return (
+      matchesSearch &&
+      matchesCategory &&
+      matchesLocation
+    );
+  });
+
+
+  if (state.sort === "price-low") {
+
+    results.sort((a, b) =>
+      Number(a.price) - Number(b.price)
+    );
+
+  } else if (state.sort === "price-high") {
+
+    results.sort((a, b) =>
+      Number(b.price) - Number(a.price)
+    );
+
+  } else {
+
+    results.sort((a, b) =>
+      (b.createdMillis || 0) -
+      (a.createdMillis || 0)
+    );
+
+  }
+
+  return results;
+}
+
+
+/* =========================================================
+   PRODUCT CARD
+========================================================= */
+
+function cardTemplate(item) {
+
+  const owned = Boolean(
+    state.user &&
+    item.ownerId === state.user.uid
+  );
+
+  const location = [
+    item.town,
+    item.state
+  ].filter(Boolean).join(", ");
+
+  const category = item.category || "Equipment";
+
+  const verified = Boolean(item.sellerVerified);
+
+  return `
+
+    <article class="listing-card">
+
+      <div class="listing-art ${categoryClass(category)}">
+
+        <span class="listing-tag">
+          ${owned ? "YOUR LISTING" : "SELLER LISTING"}
+        </span>
+
+        <span class="art-emoji" aria-hidden="true">
+          ${escapeHTML(item.emoji || categoryEmoji(category))}
+        </span>
+
+      </div>
+
+
+      <div class="listing-body">
+
+        <div class="listing-meta">
+
+          <span class="category-label">
+            ${escapeHTML(category)}
+          </span>
+
+          <span>
+            ⌖ ${escapeHTML(location || "Location not set")}
+          </span>
+
+        </div>
+
+
+        <h3>${escapeHTML(item.title)}</h3>
+
+
+        <p class="listing-description">
+          ${escapeHTML(
+            item.description ||
+            "Contact the seller for more details."
+          )}
+        </p>
+
+
+        <div class="listing-price">
+          ${formatNaira(item.price)}
+          <small>/ ${escapeHTML(item.unit || "unit")}</small>
+        </div>
+
+
+        <div class="listing-details">
+
+          <span>
+            Available:
+            <strong>
+              ${escapeHTML(item.quantity || "Ask seller")}
+            </strong>
+          </span>
+
+          <span>
+            ${verified ? "✓ Verified seller" : "Seller listing"}
+          </span>
+
+        </div>
+
+
+        <div class="seller-line">
+
+          <span class="seller-avatar">
+            ${escapeHTML(initials(item.seller))}
+          </span>
+
+          <span>
+            Listed by
+            <strong>
+              ${escapeHTML(item.seller || "Poultry seller")}
+            </strong>
+          </span>
+
+        </div>
+
+
+        <div class="card-actions">
+
+          <button
+            class="btn btn-outline"
+            type="button"
+            data-detail="${escapeHTML(item.id)}"
+          >
+            View details
+          </button>
+
+          <button
+            class="btn btn-whatsapp"
+            type="button"
+            data-contact="${escapeHTML(item.id)}"
+          >
+            WhatsApp ↗
+          </button>
+
+        </div>
+
+
+        ${owned ? `
+
+          <div class="card-actions">
+
+            <button
+              class="btn btn-outline"
+              type="button"
+              data-edit="${escapeHTML(item.id)}"
+            >
+              Edit listing
+            </button>
+
+            <button
+              class="btn btn-outline"
+              type="button"
+              data-delete="${escapeHTML(item.id)}"
+            >
+              Delete
+            </button>
+
+          </div>
+
+        ` : ""}
+
+      </div>
+
+    </article>
+
+  `;
+}
+
+
+/* =========================================================
+   RENDER MARKETPLACE
+========================================================= */
+
+function renderListings() {
+
+  if (!grid) return;
+
+  const results = getVisibleListings();
+
+  grid.innerHTML = results.map(cardTemplate).join("");
+
+  setText(
+    "#resultsCount",
+    `${results.length} ${
+      results.length === 1 ? "listing" : "listings"
+    }`
+  );
+
+
+  setHidden(
+    "#emptyState",
+    results.length > 0
+  );
+
+  grid.classList.toggle(
+    "hidden",
+    results.length === 0
+  );
+
+
+  $$("#categoryChips .chip").forEach(chip => {
+
+    chip.classList.toggle(
+      "active",
+      chip.dataset.category === state.category
+    );
+
+  });
+
+}
+
+
+function resetFilters() {
+
+  state.query = "";
+  state.category = "";
+  state.location = "";
+  state.sort = "newest";
+
+  $("#searchInput").value = "";
+  $("#categoryFilter").value = "";
+  $("#locationFilter").value = "";
+  $("#sortSelect").value = "newest";
+
+  renderListings();
+}
+
+
+/* =========================================================
+   LOAD LISTINGS FROM FIRESTORE
+========================================================= */
+
+async function loadListings() {
+
+  setText("#resultsCount", "Loading listings…");
+
+  try {
+
+    const listingsQuery = query(
+      collection(db, "products"),
+      where("status", "==", "active")
+    );
+
+    const snapshot = await getDocs(listingsQuery);
+
+    state.listings = snapshot.docs.map(snap => {
+
+      const data = snap.data();
+
+      return {
+        ...data,
+        id: snap.id,
+        createdMillis: timestampToMillis(
+          data.createdAt
+        ) || Number(data.createdMillis || 0)
+      };
+
+    });
+
+    renderListings();
+
+  } catch (error) {
+
+    showError(
+      error,
+      "Could not load marketplace listings."
+    );
+
+    if (grid) {
+      grid.innerHTML = "";
+    }
+
+    setText(
+      "#resultsCount",
+      "Marketplace could not load"
+    );
+
+    setHidden("#emptyState", false);
+
+    setText(
+      "#emptyState h3",
+      "Unable to load listings"
+    );
+
+    setText(
+      "#emptyState p",
+      "Check Firebase configuration and Firestore security rules."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   ACCOUNT PROFILE LOADING
+========================================================= */
+
+async function loadProfile(user) {
+
+  if (!user) {
+
+    state.profile = null;
+    state.seller = null;
+    state.subscription = null;
+    state.isAdmin = false;
+
     return;
   }
 
-  const item = document.createElement("div");
-  item.className = `toast ${type}`;
-  item.setAttribute("role", type === "error" ? "alert" : "status");
-  item.textContent = message;
 
-  box.appendChild(item);
+  try {
 
-  setTimeout(() => item.remove(), 4500);
+    const [
+      userSnapshot,
+      sellerSnapshot,
+      subscriptionSnapshot,
+      tokenResult
+    ] = await Promise.all([
+
+      getDoc(userRef(user.uid)),
+
+      getDoc(sellerRef(user.uid)),
+
+      getDoc(subscriptionRef(user.uid)),
+
+      user.getIdTokenResult(true)
+
+    ]);
+
+
+    state.profile = userSnapshot.exists()
+      ? userSnapshot.data()
+      : {
+          displayName: user.displayName || "",
+          email: user.email || ""
+        };
+
+
+    state.seller = sellerSnapshot.exists()
+      ? sellerSnapshot.data()
+      : null;
+
+
+    state.subscription = subscriptionSnapshot.exists()
+      ? subscriptionSnapshot.data()
+      : null;
+
+
+    /*
+      Administrator access is determined by a trusted
+      Firebase custom claim, not a user-editable field.
+    */
+
+    state.isAdmin =
+      tokenResult.claims.admin === true;
+
+
+  } catch (error) {
+
+    showError(
+      error,
+      "Could not load account information."
+    );
+
+    state.profile = {
+      displayName: user.displayName || "",
+      email: user.email || ""
+    };
+
+    state.seller = null;
+    state.subscription = null;
+    state.isAdmin = false;
+
+  }
+
 }
 
-function authError(error) {
+
+/* =========================================================
+   AUTHENTICATION UI
+========================================================= */
+
+function setAuthUI(user) {
+
+  const button = $("#signInButton");
+
+  if (!button) return;
+
+  if (user) {
+
+    const name =
+      state.profile?.displayName ||
+      user.displayName ||
+      user.email ||
+      "Account";
+
+    button.textContent =
+      "Account: " +
+      (name.length > 18
+        ? name.slice(0, 17) + "…"
+        : name);
+
+    button.title =
+      "Open your account dashboard";
+
+  } else {
+
+    button.textContent = "Sign in";
+
+    button.title =
+      "Sign in to your PoultryLink account";
+
+  }
+
+}
+
+
+/* =========================================================
+   AUTHENTICATION DIALOG
+========================================================= */
+
+function openAuth(mode = "signin") {
+
+  state.authMode = mode;
+
+  $("#authForm").reset();
+
+  setText("#authMessage", "");
+
+  updateAuthModeUI();
+
+  openDialog("authDialog");
+
+}
+
+
+function updateAuthModeUI() {
+
+  const creating =
+    state.authMode === "signup";
+
+  setText(
+    "#authTitle",
+    creating
+      ? "Create your PoultryLink account"
+      : "Welcome to PoultryLink"
+  );
+
+  setText(
+    "#authSubtitle",
+    creating
+      ? "Register to join Nigeria's poultry marketplace."
+      : "Sign in to continue."
+  );
+
+
+  setHidden(
+    "#authNameWrap",
+    !creating
+  );
+
+
+  if ($("#authName")) {
+    $("#authName").required = creating;
+  }
+
+
+  setText(
+    "#authModeButton",
+    creating
+      ? "I already have an account"
+      : "Create account"
+  );
+
+
+  setText(
+    "#authSubmitButton",
+    creating
+      ? "Create account"
+      : "Sign in"
+  );
+
+
+  if ($("#authPassword")) {
+
+    $("#authPassword").autocomplete =
+      creating
+        ? "new-password"
+        : "current-password";
+
+  }
+
+}
+
+
+function friendlyAuthError(error) {
+
+  const code = error?.code || "";
+
   const messages = {
-    "auth/invalid-email":
-      "Enter a valid email address.",
-
-    "auth/invalid-api-key":
-      "Firebase configuration is invalid. Check firebase-config.js.",
-
-    "auth/app-not-authorized":
-      "This website is not authorized for this Firebase project. Check your project and authorized domains.",
-
-    "auth/user-not-found":
-      "No account was found with those details.",
-
-    "auth/wrong-password":
-      "The email or password is incorrect.",
-
-    "auth/invalid-credential":
-      "The email or password is incorrect.",
 
     "auth/email-already-in-use":
-      "An account already exists with this email. Try signing in.",
+      "An account already exists for this email.",
+
+    "auth/invalid-email":
+      "Enter a valid email address.",
 
     "auth/weak-password":
       "Choose a stronger password with at least 6 characters.",
 
+    "auth/invalid-credential":
+      "Email or password is incorrect.",
+
+    "auth/user-not-found":
+      "No account was found for this email.",
+
+    "auth/wrong-password":
+      "Email or password is incorrect.",
+
     "auth/too-many-requests":
-      "Too many attempts. Please wait and try again.",
+      "Too many attempts. Try again later.",
 
     "auth/network-request-failed":
-      "Network error. Check your internet connection.",
+      "Network problem. Check your internet connection."
 
-    "auth/operation-not-allowed":
-      "Enable email/password sign-in in Firebase Authentication.",
-
-    "auth/unauthorized-domain":
-      "Add this website domain to Firebase Authentication's authorized domains.",
-
-    "auth/email-not-verified":
-      "Verify your email address before using account features."
   };
 
-  if (messages[error?.code]) {
-    return messages[error.code];
-  }
+  return messages[code] ||
+    "Authentication failed. Check your details and try again.";
 
-  console.error(
-    "POULTRYLINK Firebase error:",
-    error?.code || "unknown",
-    error
-  );
-
-  return "The request could not be completed. Check your connection and Firebase settings, then try again.";
 }
 
-function openModal(title, content) {
-  const backdrop = el("modalBackdrop");
-  const body = el("modalContent");
 
-  if (!backdrop || !body) {
-    toast("The dialog could not be opened.", "error");
-    return;
-  }
+/* =========================================================
+   CREATE ACCOUNT / SIGN IN
+========================================================= */
 
-  body.innerHTML = `
-    <h2 id="modalTitle">${escapeHTML(title)}</h2>
-    ${content}
-  `;
+async function handleAuthSubmit(event) {
 
-  backdrop.classList.add("is-open");
-  backdrop.setAttribute("aria-hidden", "false");
+  event.preventDefault();
 
-  document.body.classList.add("modal-open");
+  const email = $("#authEmail").value.trim();
 
-  el("modalClose")?.focus();
-}
+  const password = $("#authPassword").value;
 
-function closeModal() {
-  const backdrop = el("modalBackdrop");
+  const name = $("#authName").value.trim();
 
-  if (!backdrop) return;
 
-  backdrop.classList.remove("is-open");
-  backdrop.setAttribute("aria-hidden", "true");
+  setText("#authMessage", "Please wait…");
 
-  document.body.classList.remove("modal-open");
-}
+  $("#authSubmitButton").disabled = true;
 
-function bind(id, event, handler) {
-  el(id)?.addEventListener(event, handler);
-}
 
-function requireSignedIn() {
-  if (!state.user) {
-    openLogin();
-    return false;
-  }
+  try {
 
-  if (!state.user.emailVerified) {
-    toast("Verify your email before using this feature.", "error");
-    return false;
-  }
+    if (state.authMode === "signup") {
 
-  return true;
-}
+      const credential =
+        await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password
+        );
 
-function initModal() {
-  bind("modalClose", "click", closeModal);
-
-  el("modalBackdrop")?.addEventListener("click", event => {
-    if (event.target === el("modalBackdrop")) {
-      closeModal();
-    }
-  });
-
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape") {
-      closeModal();
-    }
-  });
-}
-
-function openRegister() {
-  openModal(
-    "Create your POULTRYLINK account",
-    `
-      <form id="registerForm">
-        <div class="form-group">
-          <label for="registerName">Full name</label>
-          <input
-            id="registerName"
-            autocomplete="name"
-            maxlength="100"
-            required
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="registerEmail">Email address</label>
-          <input
-            id="registerEmail"
-            type="email"
-            autocomplete="email"
-            maxlength="254"
-            required
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="registerPassword">Password</label>
-          <input
-            id="registerPassword"
-            type="password"
-            autocomplete="new-password"
-            minlength="6"
-            required
-          >
-        </div>
-
-        <div class="form-group">
-          <label for="registerPasswordConfirm">
-            Confirm password
-          </label>
-          <input
-            id="registerPasswordConfirm"
-            type="password"
-            autocomplete="new-password"
-            minlength="6"
-            required
-          >
-        </div>
-
-        <button
-          class="button button-primary"
-          id="registerSubmit"
-          type="submit"
-        >
-          Create account
-        </button>
-      </form>
-
-      <p class="modal-note">
-        Verify your email before using account features.
-      </p>
-
-      <button
-        class="button button-outline"
-        id="switchToLogin"
-        type="button"
-      >
-        Already have an account? Sign in
-      </button>
-    `
-  );
-
-  bind("switchToLogin", "click", openLogin);
-
-  bind("registerForm", "submit", async event => {
-    event.preventDefault();
-
-    const name = el("registerName").value.trim();
-    const email = el("registerEmail").value.trim();
-    const password = el("registerPassword").value;
-    const confirm = el("registerPasswordConfirm").value;
-    const button = el("registerSubmit");
-
-    if (password !== confirm) {
-      toast("Your passwords do not match.", "error");
-      return;
-    }
-
-    button.disabled = true;
-    button.textContent = "Creating account…";
-
-    try {
-      const credential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
 
       await updateProfile(credential.user, {
         displayName: name
       });
 
-      await sendEmailVerification(credential.user);
-      await signOut(auth);
 
-      closeModal();
+      /*
+        New accounts are created as buyers.
 
-      openModal(
-        "Verify your email",
-        `
-          <p>
-            Your account has been created. Check your inbox and
-            spam folder for the verification link, then sign in.
-          </p>
+        Seller privileges are granted only after the
+        separate verification and subscription process.
+      */
 
-          <button
-            class="button button-primary"
-            id="verifiedLoginButton"
-            type="button"
-          >
-            Go to sign in
-          </button>
-        `
+      await setDoc(
+        doc(db, "users", credential.user.uid),
+        {
+          uid: credential.user.uid,
+          displayName: name,
+          email: credential.user.email || email,
+          accountType: "buyer",
+          createdAt: serverTimestamp()
+        }
       );
 
-      bind("verifiedLoginButton", "click", openLogin);
-    } catch (error) {
-      console.error(error);
-      toast(authError(error), "error");
-    } finally {
-      if (el("registerSubmit")) {
-        el("registerSubmit").disabled = false;
-        el("registerSubmit").textContent = "Create account";
-      }
-    }
-  });
-}
 
-function openLogin() {
-  openModal(
-    "Sign in to POULTRYLINK",
-    `
-      <form id="loginForm">
-        <div class="form-group">
-          <label for="loginEmail">Email address</label>
-          <input
-            id="loginEmail"
-            type="email"
-            autocomplete="email"
-            required
-          >
-        </div>
+      state.profile = {
+        displayName: name,
+        email,
+        accountType: "buyer"
+      };
 
-        <div class="form-group">
-          <label for="loginPassword">Password</label>
-          <input
-            id="loginPassword"
-            type="password"
-            autocomplete="current-password"
-            required
-          >
-        </div>
 
-        <button
-          class="button button-primary"
-          id="loginSubmit"
-          type="submit"
-        >
-          Sign in
-        </button>
-      </form>
+      showToast(
+        "Your PoultryLink account has been created."
+      );
 
-      <button
-        class="button button-outline"
-        id="forgotPasswordButton"
-        type="button"
-      >
-        Forgot password?
-      </button>
 
-      <button
-        class="button button-outline"
-        id="switchToRegister"
-        type="button"
-      >
-        Create an account
-      </button>
-    `
-  );
+    } else {
 
-  bind("switchToRegister", "click", openRegister);
-  bind("forgotPasswordButton", "click", openResetPassword);
-
-  bind("loginForm", "submit", async event => {
-    event.preventDefault();
-
-    const email = el("loginEmail").value.trim();
-    const password = el("loginPassword").value;
-    const button = el("loginSubmit");
-
-    button.disabled = true;
-    button.textContent = "Signing in…";
-
-    try {
-      const result = await signInWithEmailAndPassword(
+      await signInWithEmailAndPassword(
         auth,
         email,
         password
       );
 
-      if (!result.user.emailVerified) {
-        await signOut(auth);
+      showToast("Signed in successfully.");
 
-        openModal(
-          "Email verification required",
-          `
-            <p>
-              Please verify your email address before continuing.
-            </p>
+    }
 
-            <button
-              class="button button-primary"
-              id="resendVerificationButton"
-              type="button"
-            >
-              Resend verification email
-            </button>
 
-            <button
-              class="button button-outline"
-              id="returnToLoginButton"
-              type="button"
-            >
-              Back to sign in
-            </button>
-          `
+    closeDialog($("#authDialog"));
+
+  } catch (error) {
+
+    showError(error, "Authentication failed.");
+
+    setText(
+      "#authMessage",
+      friendlyAuthError(error)
+    );
+
+  } finally {
+
+    $("#authSubmitButton").disabled = false;
+
+  }
+
+}
+
+
+/* =========================================================
+   SELLER ELIGIBILITY
+========================================================= */
+
+function sellerEligibility() {
+
+  if (!state.user) {
+
+    return {
+      allowed: false,
+      reason: "Sign in before publishing products."
+    };
+
+  }
+
+
+  if (!state.seller) {
+
+    return {
+      allowed: false,
+      reason: "Submit your seller verification application first."
+    };
+
+  }
+
+
+  if (state.seller.verificationStatus !== "approved") {
+
+    return {
+      allowed: false,
+      reason: "Your seller account has not been approved."
+    };
+
+  }
+
+
+  if (!isSubscriptionActive(state.subscription)) {
+
+    return {
+      allowed: false,
+      reason: "You need an active seller subscription."
+    };
+
+  }
+
+
+  return {
+    allowed: true,
+    reason: ""
+  };
+
+}
+
+
+/* =========================================================
+   LISTING FORM
+========================================================= */
+
+function openListingForm(item = null) {
+
+  if (!state.user) {
+
+    showToast(
+      "Sign in before listing a product."
+    );
+
+    openAuth("signin");
+
+    return;
+
+  }
+
+
+  const eligibility = sellerEligibility();
+
+  if (!eligibility.allowed) {
+
+    showToast(eligibility.reason);
+
+    if (!state.seller) {
+
+      openDialog("verificationDialog");
+
+    } else if (
+      state.seller.verificationStatus !== "approved"
+    ) {
+
+      showToast(
+        "Your seller application is awaiting approval."
+      );
+
+    } else {
+
+      openDialog("subscriptionDialog");
+
+    }
+
+    return;
+
+  }
+
+
+  state.editingId = item?.id || null;
+
+  $("#listingForm").reset();
+
+  setText("#formMessage", "");
+
+  $("#editingListingId").value =
+    state.editingId || "";
+
+
+  setText(
+    "#listingTitle",
+    state.editingId
+      ? "Edit your listing"
+      : "List a product"
+  );
+
+
+  setText(
+    "#saveListingButton",
+    state.editingId
+      ? "Save changes"
+      : "Publish listing"
+  );
+
+
+  $("#listingSeller").value =
+    item?.seller ||
+    state.seller?.businessName ||
+    state.profile?.displayName ||
+    "";
+
+
+  $("#listingPhone").value =
+    item?.phone ||
+    state.seller?.phone ||
+    state.profile?.phone ||
+    "";
+
+
+  if (item) {
+
+    $("#listingTitleInput").value =
+      item.title || "";
+
+    $("#listingCategory").value =
+      item.category || "";
+
+    $("#listingPrice").value =
+      item.price ?? "";
+
+    $("#listingQuantity").value =
+      item.quantity || "";
+
+    $("#listingUnit").value =
+      item.unit || "per unit";
+
+    $("#listingState").value =
+      item.state || "";
+
+    $("#listingTown").value =
+      item.town || "";
+
+    $("#listingDescription").value =
+      item.description || "";
+
+  }
+
+
+  openDialog("listingDialog");
+
+}
+
+
+/* =========================================================
+   GET LISTING FORM DATA
+========================================================= */
+
+function getFormListing() {
+
+  const data = new FormData($("#listingForm"));
+
+  const category = String(
+    data.get("category") || ""
+  );
+
+
+  return {
+
+    title: String(
+      data.get("title") || ""
+    ).trim(),
+
+    category,
+
+    price: Number(
+      data.get("price")
+    ),
+
+    quantity: String(
+      data.get("quantity") || ""
+    ).trim(),
+
+    unit: String(
+      data.get("unit") || "per unit"
+    ),
+
+    state: String(
+      data.get("state") || ""
+    ),
+
+    town: String(
+      data.get("town") || ""
+    ).trim(),
+
+    seller: String(
+      data.get("seller") || ""
+    ).trim(),
+
+    phone: normalisePhone(
+      data.get("phone")
+    ),
+
+    description: String(
+      data.get("description") || ""
+    ).trim(),
+
+    emoji: categoryEmoji(category),
+
+    art: categoryClass(category),
+
+    status: "active"
+
+  };
+
+}
+
+
+/* =========================================================
+   VALIDATE LISTING
+========================================================= */
+
+function validateListing(item) {
+
+  if (
+    item.title.length < 3 ||
+    item.title.length > 100
+  ) {
+
+    return "Product title must be between 3 and 100 characters.";
+
+  }
+
+
+  if (!Object.hasOwn(categoryInfo, item.category)) {
+
+    return "Choose a valid product category.";
+
+  }
+
+
+  if (
+    !Number.isFinite(item.price) ||
+    item.price <= 0 ||
+    item.price > CONFIG.maxListingPrice
+  ) {
+
+    return "Enter a valid product price.";
+
+  }
+
+
+  if (
+    !item.quantity ||
+    item.quantity.length > 80
+  ) {
+
+    return "Enter the available quantity.";
+
+  }
+
+
+  if (!item.state || !item.town) {
+
+    return "Enter your state and town.";
+
+  }
+
+
+  if (
+    item.seller.length < 2 ||
+    item.seller.length > 80
+  ) {
+
+    return "Enter a valid seller or farm name.";
+
+  }
+
+
+  if (
+    item.phone.length < 10 ||
+    item.phone.length > 15
+  ) {
+
+    return "Enter a valid WhatsApp number.";
+
+  }
+
+
+  if (item.description.length > 1200) {
+
+    return "Description must not exceed 1,200 characters.";
+
+  }
+
+
+  return "";
+
+}
+
+
+/* =========================================================
+   SAVE LISTING
+========================================================= */
+
+async function saveListing(event) {
+
+  event.preventDefault();
+
+
+  if (!state.user) {
+
+    closeDialog($("#listingDialog"));
+
+    openAuth("signin");
+
+    return;
+
+  }
+
+
+  const eligibility = sellerEligibility();
+
+  if (!eligibility.allowed) {
+
+    setText(
+      "#formMessage",
+      eligibility.reason
+    );
+
+    return;
+
+  }
+
+
+  const item = getFormListing();
+
+  const validation = validateListing(item);
+
+  if (validation) {
+
+    setText("#formMessage", validation);
+
+    return;
+
+  }
+
+
+  setText(
+    "#formMessage",
+    "Saving listing…"
+  );
+
+  $("#saveListingButton").disabled = true;
+
+
+  try {
+
+    if (state.editingId) {
+
+      const current = state.listings.find(
+        listing => listing.id === state.editingId
+      );
+
+
+      if (
+        !current ||
+        current.ownerId !== state.user.uid
+      ) {
+
+        throw new Error(
+          "You can only edit your own listings."
         );
 
-        bind("resendVerificationButton", "click", async () => {
-          try {
-            const retry = await signInWithEmailAndPassword(
-              auth,
-              email,
-              password
-            );
-
-            await sendEmailVerification(retry.user);
-            await signOut(auth);
-
-            toast("Verification email sent.");
-            openLogin();
-          } catch (error) {
-            toast(authError(error), "error");
-          }
-        });
-
-        bind("returnToLoginButton", "click", openLogin);
-        return;
       }
 
-      await ensureProfile(result.user);
 
-      closeModal();
-      toast("You are signed in.");
-    } catch (error) {
-      console.error(error);
-      toast(authError(error), "error");
-    } finally {
-      if (el("loginSubmit")) {
-        el("loginSubmit").disabled = false;
-        el("loginSubmit").textContent = "Sign in";
-      }
+      await updateDoc(
+        doc(db, "products", state.editingId),
+        {
+          ...item,
+          updatedAt: serverTimestamp()
+        }
+      );
+
+
+      showToast("Listing updated successfully.");
+
+
+    } else {
+
+      await addDoc(
+        collection(db, "products"),
+        {
+
+          ...item,
+
+          ownerId: state.user.uid,
+
+          sellerVerified: true,
+
+          createdAt: serverTimestamp(),
+
+          createdMillis: Date.now()
+
+        }
+      );
+
+
+      showToast("Your product has been published.");
+
     }
-  });
+
+
+    closeDialog($("#listingDialog"));
+
+    resetFilters();
+
+    await loadListings();
+
+    await loadDashboardData();
+
+
+    $("#marketplace").scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+
+
+  } catch (error) {
+
+    showError(error, "Could not save listing.");
+
+    setText(
+      "#formMessage",
+      error.message?.includes("only edit")
+        ? error.message
+        : "Could not save listing. Check your connection and Firestore Rules."
+    );
+
+  } finally {
+
+    $("#saveListingButton").disabled = false;
+
+  }
+
 }
 
-function openResetPassword() {
-  openModal(
-    "Reset your password",
-    `
-      <p>
-        Enter your account email address and we'll send reset
-        instructions.
-      </p>
 
-      <form id="resetForm">
-        <div class="form-group">
-          <label for="resetEmail">Email address</label>
-          <input
-            id="resetEmail"
-            type="email"
-            autocomplete="email"
-            required
-          >
-        </div>
+/* =========================================================
+   DELETE LISTING
+========================================================= */
 
-        <button class="button button-primary" type="submit">
-          Send reset email
-        </button>
-      </form>
-    `
+async function deleteListing(id) {
+
+  const item = state.listings.find(
+    listing => listing.id === id
   );
 
-  bind("resetForm", "submit", async event => {
-    event.preventDefault();
 
-    try {
-      await sendPasswordResetEmail(
-        auth,
-        el("resetEmail").value.trim()
-      );
+  if (
+    !item ||
+    !state.user ||
+    item.ownerId !== state.user.uid
+  ) {
 
-      closeModal();
-
-      toast(
-        "If the account can receive a reset email, instructions have been sent."
-      );
-    } catch (error) {
-      toast(authError(error), "error");
-    }
-  });
-}
-
-/* =========================================================
-   USER PROFILE AND FIREBASE AUTHENTICATION
-========================================================= */
-
-async function ensureProfile(user) {
-  if (!user?.emailVerified) return;
-
-  const ref = doc(db, "users", user.uid);
-
-  try {
-    const snap = await getDoc(ref);
-
-    if (!snap.exists()) {
-      await setDoc(ref, {
-        displayName: user.displayName || "",
-        email: user.email,
-        phone: "",
-        location: "",
-        createdAt: serverTimestamp()
-      });
-
-      state.profile = {
-        displayName: user.displayName || "",
-        email: user.email,
-        phone: "",
-        location: ""
-      };
-    } else {
-      state.profile = snap.data();
-    }
-  } catch (error) {
-    console.error("Profile setup failed:", error);
-
-    toast(
-      "Signed in, but your profile could not be loaded. Check Firestore rules.",
-      "error"
-    );
-  }
-
-  try {
-    const sellerSnap = await getDoc(
-      doc(db, "sellers", user.uid)
+    showToast(
+      "You can only delete your own listings."
     );
 
-    state.seller = sellerSnap.exists()
-      ? sellerSnap.data()
-      : null;
+    return;
+
+  }
+
+
+  if (!window.confirm(
+    `Delete "${item.title}"? This cannot be undone.`
+  )) {
+
+    return;
+
+  }
+
+
+  try {
+
+    await deleteDoc(
+      doc(db, "products", id)
+    );
+
+
+    state.listings = state.listings.filter(
+      listing => listing.id !== id
+    );
+
+
+    renderListings();
+
+    showToast("Listing deleted.");
+
+    await loadDashboardData();
+
+
   } catch (error) {
-    state.seller = null;
-    console.warn("Seller record unavailable:", error);
+
+    showError(error, "Delete failed.");
+
+    showToast(
+      "Could not delete listing. Check Firestore Rules."
+    );
+
   }
-}
 
-function initAuth() {
-  onAuthStateChanged(auth, async user => {
-    state.user = user;
-    state.authReady = true;
-
-    if (user?.emailVerified) {
-      await ensureProfile(user);
-    } else {
-      state.profile = null;
-      state.seller = null;
-    }
-
-    const login = el("loginButton");
-    const register = el("registerButton");
-
-    if (login) {
-      login.textContent = user ? "Sign out" : "Log in";
-    }
-
-    if (register) {
-      register.hidden = Boolean(user);
-    }
-
-    updateAccountControls();
-  });
-
-  bind("loginButton", "click", async () => {
-    if (!auth.currentUser) {
-      openLogin();
-      return;
-    }
-
-    try {
-      await signOut(auth);
-
-      state.profile = null;
-      state.seller = null;
-
-      toast("You have signed out.");
-    } catch (error) {
-      console.error(error);
-      toast(authError(error), "error");
-    }
-  });
-
-  bind("registerButton", "click", openRegister);
-}
-
-function updateAccountControls() {
-  const nav = el("mainNav");
-
-  if (!nav) return;
-
-  let button = el("accountDashboardButton");
-
-  if (state.user?.emailVerified) {
-    if (!button) {
-      button = document.createElement("button");
-      button.id = "accountDashboardButton";
-      button.className = "nav-link";
-      button.type = "button";
-      button.textContent = "My Dashboard";
-
-      nav.appendChild(button);
-
-      button.addEventListener("click", openDashboard);
-    }
-  } else {
-    button?.remove();
-  }
 }
 
 
 /* =========================================================
-   FIRESTORE MARKETPLACE
+   WHATSAPP CONTACT
 ========================================================= */
 
-async function loadProducts() {
-  state.loadingProducts = true;
-  state.productsError = false;
+function contactSeller(id) {
 
-  renderProducts();
+  const item = state.listings.find(
+    listing => listing.id === id
+  );
 
-  try {
-    const productsQuery = query(
-      collection(db, "products"),
-      where("status", "==", "active")
+  if (!item) return;
+
+
+  const phone = normalisePhone(item.phone);
+
+
+  if (
+    phone.length < 10 ||
+    phone.length > 15
+  ) {
+
+    showToast(
+      "This listing has no valid WhatsApp number."
     );
 
-    const snapshot = await getDocs(productsQuery);
+    return;
 
-    state.products = snapshot.docs.map(item => ({
-      id: item.id,
-      ...item.data()
-    }));
-  } catch (error) {
-    console.error("Product query failed:", error);
-
-    state.products = [];
-    state.productsError = true;
-  } finally {
-    state.loadingProducts = false;
-    renderProducts();
   }
+
+
+  const message =
+    `Hello ${item.seller || "seller"}, ` +
+    `I found your "${item.title}" listing on PoultryLink. ` +
+    `Is it still available? Please confirm the price, quantity ` +
+    `and delivery or pickup details.`;
+
+
+  const url =
+    `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+
+
+  window.open(
+    url,
+    "_blank",
+    "noopener,noreferrer"
+  );
+
 }
 
-function visibleProducts() {
-  let products = [...state.products];
 
-  if (state.search.trim()) {
-    const term = state.search.trim().toLowerCase();
+/* =========================================================
+   PRODUCT DETAILS
+========================================================= */
 
-    products = products.filter(product => {
-      const searchable = [
-        product.title,
-        product.category,
-        product.location,
-        product.description
-      ].join(" ").toLowerCase();
+function showDetails(id) {
 
-      return searchable.includes(term);
-    });
-  }
+  const item = state.listings.find(
+    listing => listing.id === id
+  );
 
-  if (state.category !== "All") {
-    products = products.filter(
-      product => product.category === state.category
-    );
-  }
+  if (!item) return;
 
-  if (state.sort === "price-low") {
-    products.sort(
-      (a, b) => Number(a.price) - Number(b.price)
-    );
-  } else if (state.sort === "price-high") {
-    products.sort(
-      (a, b) => Number(b.price) - Number(a.price)
-    );
-  } else if (state.sort === "name") {
-    products.sort(
-      (a, b) =>
-        String(a.title || "").localeCompare(
-          String(b.title || "")
-        )
-    );
-  } else {
-    products.sort(
-      (a, b) =>
-        (b.createdAt?.toMillis?.() || 0) -
-        (a.createdAt?.toMillis?.() || 0)
-    );
-  }
 
-  return products;
-}
+  const location = [
+    item.town,
+    item.state
+  ].filter(Boolean).join(", ");
 
-function renderProducts() {
-  const grid = el("productGrid");
-  const count = el("productCount");
 
-  if (!grid) return;
+  const owned = Boolean(
+    state.user &&
+    item.ownerId === state.user.uid
+  );
 
-  if (state.loadingProducts) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <h3>Loading marketplace</h3>
-        <p>Fetching real listings from POULTRYLINK.</p>
-      </div>
-    `;
 
-    if (count) {
-      count.textContent = "Loading listings…";
-    }
+  setHTML(
+    "#detailContent",
 
-    return;
-  }
+    `
 
-  if (state.productsError) {
-    grid.innerHTML = `
-      <div class="empty-state">
-        <h3>Listings could not be loaded</h3>
-        <p>
-          Check your internet connection, Firebase configuration,
-          and Firestore rules.
-        </p>
+      <div class="modal-header">
 
-        <button
-          class="button button-primary"
-          id="retryProductsButton"
-          type="button"
-        >
-          Try again
-        </button>
-      </div>
-    `;
+        <div>
 
-    if (count) {
-      count.textContent = "Unable to load listings";
-    }
-
-    bind("retryProductsButton", "click", loadProducts);
-
-    return;
-  }
-
-  const products = visibleProducts();
-
-  if (count) {
-    count.textContent =
-      `${products.length} real listing` +
-      `${products.length === 1 ? "" : "s"} found`;
-  }
-
-  if (!products.length) {
-    const filtered =
-      state.search || state.category !== "All";
-
-    grid.innerHTML = `
-      <div class="empty-state">
-        <h3>
-          ${filtered
-            ? "No matching listings"
-            : "No listings available yet"}
-        </h3>
-
-        <p>
-          ${filtered
-            ? "Try another search term or category."
-            : "There are currently no active products in the marketplace."}
-        </p>
-      </div>
-    `;
-
-    return;
-  }
-
-  grid.innerHTML = products.map(product => {
-    const urls = Array.isArray(product.imageUrls)
-      ? product.imageUrls
-      : [];
-
-    const image = urls.find(
-      url =>
-        typeof url === "string" &&
-        /^https:\/\//i.test(url)
-    );
-
-    const photo = image
-      ? `
-        <img
-          src="${escapeHTML(image)}"
-          alt="${escapeHTML(product.title)}"
-          loading="lazy"
-          referrerpolicy="no-referrer"
-        >
-      `
-      : `
-        <div
-          class="product-image-placeholder"
-          aria-label="No product image"
-        >
-          🐔
-        </div>
-      `;
-
-    const saved = state.saved.includes(product.id);
-
-    return `
-      <article class="product-card">
-
-        <div class="product-image">
-          ${photo}
-        </div>
-
-        <div class="product-details">
-
-          <span class="product-category">
-            ${escapeHTML(product.category)}
+          <span class="section-kicker">
+            LISTING DETAILS
           </span>
 
-          <h3 class="product-title">
-            ${escapeHTML(product.title)}
-          </h3>
-
-          <p class="product-description">
-            ${escapeHTML(product.description || "")}
+          <p>
+            Review the offer before contacting the seller.
           </p>
 
-          <p class="product-location">
-            📍 ${escapeHTML(
-              product.location || "Location not provided"
-            )}
-          </p>
-
-          <p class="product-price">
-            ${formatNaira(product.price)}
-            <small>${escapeHTML(product.unit || "")}</small>
-          </p>
-
-          <p class="product-seller">
-            POULTRYLINK marketplace listing
-          </p>
-
-          <div class="product-actions">
-
-            <button
-              class="button button-primary"
-              type="button"
-              data-action="details"
-              data-id="${escapeHTML(product.id)}"
-            >
-              Details
-            </button>
-
-            <button
-              class="button button-outline"
-              type="button"
-              data-action="save"
-              data-id="${escapeHTML(product.id)}"
-              aria-pressed="${saved}"
-            >
-              ${saved ? "♥ Saved" : "♡ Save"}
-            </button>
-
-            <button
-              class="button button-outline"
-              type="button"
-              data-action="cart"
-              data-id="${escapeHTML(product.id)}"
-            >
-              Add to cart
-            </button>
-
-            <button
-              class="button button-outline"
-              type="button"
-              data-action="contact"
-              data-id="${escapeHTML(product.id)}"
-            >
-              Contact seller
-            </button>
-
-          </div>
         </div>
-      </article>
-    `;
-  }).join("");
+
+        <button
+          type="button"
+          class="modal-close"
+          data-close="detailDialog"
+          aria-label="Close"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div class="detail-hero">
+
+        <div class="listing-art ${categoryClass(item.category)}">
+
+          <span class="art-emoji">
+            ${escapeHTML(item.emoji || categoryEmoji(item.category))}
+          </span>
+
+        </div>
+
+
+        <div>
+
+          <h2 id="detailHeading">
+            ${escapeHTML(item.title)}
+          </h2>
+
+          <span class="category-label">
+            ${escapeHTML(item.category)}
+          </span>
+
+          <div class="listing-price">
+            ${formatNaira(item.price)}
+            <small>/ ${escapeHTML(item.unit || "unit")}</small>
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <p class="detail-copy">
+        ${escapeHTML(
+          item.description ||
+          "Contact the seller to confirm product details."
+        )}
+      </p>
+
+
+      <div class="detail-facts">
+
+        <div class="detail-fact">
+          <small>AVAILABLE QUANTITY</small>
+          <strong>${escapeHTML(item.quantity || "Ask seller")}</strong>
+        </div>
+
+        <div class="detail-fact">
+          <small>LOCATION</small>
+          <strong>${escapeHTML(location || "Not specified")}</strong>
+        </div>
+
+        <div class="detail-fact">
+          <small>SELLER / FARM</small>
+          <strong>${escapeHTML(item.seller || "Poultry seller")}</strong>
+        </div>
+
+        <div class="detail-fact">
+          <small>LISTING STATUS</small>
+          <strong>${owned ? "Your listing" : "Seller listing"}</strong>
+        </div>
+
+      </div>
+
+
+      <p class="detail-copy">
+
+        <strong>Safety reminder:</strong>
+
+        Confirm stock, quality, final price, transport and
+        payment arrangements directly with the seller.
+
+      </p>
+
+
+      <button
+        type="button"
+        class="btn btn-primary full-button"
+        data-contact="${escapeHTML(item.id)}"
+      >
+        Contact seller on WhatsApp ↗
+      </button>
+
+    `
+  );
+
+
+  openDialog("detailDialog");
+
 }
 
 
 /* =========================================================
-   PRODUCT DETAILS, SAVED PRODUCTS AND CART
+   SELLER VERIFICATION
 ========================================================= */
 
-function details(productId) {
-  const product = state.products.find(
-    item => item.id === productId
-  );
+function openVerificationForm() {
 
-  if (!product) {
-    toast("This listing is no longer available.", "error");
+  if (!state.user) {
+
+    openAuth("signin");
+
     return;
+
   }
 
-  const image = Array.isArray(product.imageUrls)
-    ? product.imageUrls.find(
-        url =>
-          typeof url === "string" &&
-          /^https:\/\//i.test(url)
-      )
-    : "";
 
-  openModal(
-    product.title || "Product details",
-    `
-      ${image
-        ? `
-          <img
-            src="${escapeHTML(image)}"
-            alt="${escapeHTML(product.title)}"
-            style="width:100%;max-height:260px;object-fit:contain"
-          >
-        `
-        : ""}
+  if (state.seller?.verificationStatus === "approved") {
 
-      <p class="product-category">
-        ${escapeHTML(product.category)}
-      </p>
+    showToast(
+      "Your seller account has already been approved."
+    );
 
-      <p>${escapeHTML(product.description || "")}</p>
+    return;
+
+  }
+
+
+  $("#verificationForm").reset();
+
+  setText("#verificationMessage", "");
+
+
+  if (state.seller) {
+
+    $("#verificationBusinessName").value =
+      state.seller.businessName || "";
+
+    $("#verificationFullName").value =
+      state.seller.fullName ||
+      state.profile?.displayName ||
+      "";
+
+    $("#verificationPhone").value =
+      state.seller.phone ||
+      state.profile?.phone ||
+      "";
+
+    $("#verificationState").value =
+      state.seller.state || "";
+
+    $("#verificationTown").value =
+      state.seller.town || "";
+
+    $("#verificationAddress").value =
+      state.seller.address || "";
+
+    $("#verificationDescription").value =
+      state.seller.description || "";
+
+  } else {
+
+    $("#verificationFullName").value =
+      state.profile?.displayName ||
+      state.user.displayName ||
+      "";
+
+    $("#verificationPhone").value =
+      state.profile?.phone || "";
+
+  }
+
+
+  openDialog("verificationDialog");
+
+}
+
+
+async function submitVerification(event) {
+
+  event.preventDefault();
+
+
+  if (!state.user) {
+
+    openAuth("signin");
+
+    return;
+
+  }
+
+
+  const data = new FormData(
+    $("#verificationForm")
+  );
+
+
+  const application = {
+
+    uid: state.user.uid,
+
+    email: state.user.email || "",
+
+    businessName: String(
+      data.get("businessName") || ""
+    ).trim(),
+
+    fullName: String(
+      data.get("fullName") || ""
+    ).trim(),
+
+    phone: normalisePhone(
+      data.get("phone")
+    ),
+
+    state: String(
+      data.get("state") || ""
+    ),
+
+    town: String(
+      data.get("town") || ""
+    ).trim(),
+
+    address: String(
+      data.get("address") || ""
+    ).trim(),
+
+    description: String(
+      data.get("description") || ""
+    ).trim(),
+
+    documentReference: String(
+      data.get("documentReference") || ""
+    ).trim()
+
+  };
+
+
+  if (
+    application.businessName.length < 2 ||
+    application.fullName.length < 2 ||
+    application.phone.length < 10 ||
+    !application.state ||
+    !application.town ||
+    !application.address ||
+    application.description.length < 10
+  ) {
+
+    setText(
+      "#verificationMessage",
+      "Complete all required fields with valid information."
+    );
+
+    return;
+
+  }
+
+
+  $("#submitVerificationButton").disabled = true;
+
+  setText(
+    "#verificationMessage",
+    "Submitting application…"
+  );
+
+
+  try {
+
+    const applicationRef = doc(
+      db,
+      "sellerApplications",
+      state.user.uid
+    );
+
+
+    const existingApplication = await getDoc(
+      applicationRef
+    );
+
+
+    if (
+      existingApplication.exists() &&
+      existingApplication.data().status === "approved"
+    ) {
+
+      throw new Error(
+        "Your seller application has already been approved."
+      );
+
+    }
+
+
+    await setDoc(
+      applicationRef,
+      {
+
+        ...application,
+
+        status: "pending",
+
+        submittedAt: serverTimestamp(),
+
+        updatedAt: serverTimestamp()
+
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    await setDoc(
+      sellerRef(),
+      {
+
+        uid: state.user.uid,
+
+        email: state.user.email || "",
+
+        displayName: application.fullName,
+
+        businessName: application.businessName,
+
+        fullName: application.fullName,
+
+        phone: application.phone,
+
+        state: application.state,
+
+        town: application.town,
+
+        address: application.address,
+
+        description: application.description,
+
+        verificationStatus: "pending",
+
+        updatedAt: serverTimestamp()
+
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    await loadProfile(state.user);
+
+    await loadDashboardData();
+
+
+    closeDialog($("#verificationDialog"));
+
+    showToast(
+      "Your seller verification application has been submitted."
+    );
+
+
+  } catch (error) {
+
+    showError(
+      error,
+      "Could not submit verification application."
+    );
+
+    setText(
+      "#verificationMessage",
+      error.message ||
+      "Could not submit your application. Try again."
+    );
+
+  } finally {
+
+    $("#submitVerificationButton").disabled = false;
+
+  }
+
+}
+
+
+/* =========================================================
+   SUBSCRIPTION STATUS
+========================================================= */
+
+function renderSubscriptionStatus() {
+
+  const container = $("#subscriptionStatus");
+
+  if (!container) return;
+
+
+  if (!state.seller) {
+
+    container.textContent =
+      "Complete seller verification first.";
+
+    return;
+
+  }
+
+
+  if (state.seller.verificationStatus !== "approved") {
+
+    container.textContent =
+      "Seller verification approval is required.";
+
+    return;
+
+  }
+
+
+  if (isSubscriptionActive(state.subscription)) {
+
+    container.innerHTML = `
 
       <p>
-        <strong>Price:</strong>
-        ${formatNaira(product.price)}
-        ${escapeHTML(product.unit || "")}
+        <strong>Active subscription</strong>
+      </p>
+
+      <p>
+        Plan:
+        ${escapeHTML(state.subscription.plan || "Seller plan")}
+      </p>
+
+      <p>
+        Expires:
+        ${friendlyDate(state.subscription.expiresAt)}
+      </p>
+
+    `;
+
+  } else {
+
+    container.textContent =
+      "No active seller subscription.";
+
+  }
+
+}
+
+
+/* =========================================================
+   SUBSCRIPTION PAYMENT INITIALIZATION
+========================================================= */
+
+async function startSubscription(plan) {
+
+  if (!state.user) {
+
+    openAuth("signin");
+
+    return;
+
+  }
+
+
+  if (!state.seller) {
+
+    showToast(
+      "Submit your seller verification application first."
+    );
+
+    openVerificationForm();
+
+    return;
+
+  }
+
+
+  if (state.seller.verificationStatus !== "approved") {
+
+    showToast(
+      "Your seller verification must be approved before subscribing."
+    );
+
+    return;
+
+  }
+
+
+  if (!["monthly", "yearly"].includes(plan)) {
+
+    showToast("Invalid subscription plan.");
+
+    return;
+
+  }
+
+
+  const amount = plan === "monthly"
+    ? CONFIG.monthlyPrice
+    : CONFIG.yearlyPrice;
+
+
+  setText(
+    "#subscriptionMessage",
+    "Connecting to secure payment service…"
+  );
+
+
+  const buttons = $$("[data-subscription-plan]");
+
+  buttons.forEach(button => {
+    button.disabled = true;
+  });
+
+
+  try {
+
+    const token = await state.user.getIdToken();
+
+
+    const response = await fetch(
+      CONFIG.paymentEndpoint,
+      {
+
+        method: "POST",
+
+        headers: {
+
+          "Content-Type": "application/json",
+
+          "Authorization": `Bearer ${token}`
+
+        },
+
+        body: JSON.stringify({
+
+          plan,
+
+          amount,
+
+          currency: CONFIG.currency
+
+        })
+
+      }
+    );
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        "Secure payment service is not available. Please try again later."
+      );
+
+    }
+
+
+    const result = await response.json();
+
+
+    if (!result.authorization_url) {
+
+      throw new Error(
+        "Payment service did not return a checkout link."
+      );
+
+    }
+
+
+    /*
+      The backend must verify the payment with Paystack
+      and activate the subscription only after verification.
+    */
+
+    window.location.assign(
+      result.authorization_url
+    );
+
+
+  } catch (error) {
+
+    showError(
+      error,
+      "Could not initialize payment."
+    );
+
+    setText(
+      "#subscriptionMessage",
+      error.message ||
+      "Payment could not be started. Please try again."
+    );
+
+  } finally {
+
+    buttons.forEach(button => {
+      button.disabled = false;
+    });
+
+  }
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+async function openDashboard() {
+
+  if (!state.user) {
+
+    openAuth("signin");
+
+    return;
+
+  }
+
+
+  state.dashboardOpen = true;
+
+
+  setHidden("#dashboardSection", false);
+
+  setHidden("#adminSection", !state.isAdmin);
+
+
+  await loadDashboardData();
+
+
+  $("#dashboardSection").scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+}
+
+
+function closeDashboard() {
+
+  state.dashboardOpen = false;
+
+  setHidden("#dashboardSection", true);
+
+  setHidden("#adminSection", true);
+
+}
+
+
+async function loadDashboardData() {
+
+  if (!state.user) return;
+
+
+  setText(
+    "#dashboardUserName",
+    state.profile?.displayName ||
+    state.user.displayName ||
+    "PoultryLink user"
+  );
+
+
+  setText(
+    "#dashboardUserEmail",
+    state.user.email || ""
+  );
+
+
+  setText(
+    "#dashboardRoleBadge",
+    state.isAdmin
+      ? "Administrator"
+      : state.seller
+        ? "Seller account"
+        : "Buyer account"
+  );
+
+
+  renderProfileInformation();
+
+  renderVerificationStatus();
+
+  renderSubscriptionStatus();
+
+
+  await Promise.all([
+
+    loadMyListings(),
+
+    loadSavedProducts(),
+
+    loadMyOrders(),
+
+    loadRecentActivities()
+
+  ]);
+
+
+  if (state.isAdmin) {
+
+    await loadAdminDashboard();
+
+  }
+
+}
+
+
+/* =========================================================
+   DASHBOARD PROFILE
+========================================================= */
+
+function renderProfileInformation() {
+
+  const profile = state.profile || {};
+
+  setHTML(
+    "#profileInformation",
+
+    `
+
+      <p>
+        <strong>Name:</strong>
+        ${escapeHTML(profile.displayName || "Not provided")}
+      </p>
+
+      <p>
+        <strong>Email:</strong>
+        ${escapeHTML(state.user?.email || "Not available")}
+      </p>
+
+      <p>
+        <strong>Phone:</strong>
+        ${escapeHTML(profile.phone || "Not provided")}
       </p>
 
       <p>
         <strong>Location:</strong>
-        ${escapeHTML(product.location || "Not provided")}
+        ${escapeHTML(profile.location || "Not provided")}
       </p>
 
-      <p class="modal-note">
-        Confirm stock, delivery terms, and seller details directly
-        before agreeing to purchase. Online payment is not enabled.
-      </p>
-
-      <button
-        class="button button-primary"
-        id="detailAddCart"
-        type="button"
-      >
-        Add to cart
-      </button>
     `
   );
 
-  bind("detailAddCart", "click", () => {
-    addToCart(productId);
-    closeModal();
-  });
 }
 
-function toggleSaved(id) {
-  state.saved = state.saved.includes(id)
-    ? state.saved.filter(item => item !== id)
-    : [...state.saved, id];
 
-  persistLocal();
-  renderProducts();
+/* =========================================================
+   EDIT PROFILE
+========================================================= */
 
-  toast(
-    state.saved.includes(id)
-      ? "Saved on this device."
-      : "Removed from saved products."
-  );
+function openProfileEditor() {
+
+  if (!state.user) return;
+
+
+  $("#profileName").value =
+    state.profile?.displayName ||
+    state.user.displayName ||
+    "";
+
+
+  $("#profilePhone").value =
+    state.profile?.phone || "";
+
+
+  $("#profileLocation").value =
+    state.profile?.location || "";
+
+
+  setText("#profileMessage", "");
+
+  openDialog("profileDialog");
+
 }
 
-function addToCart(id) {
-  const product = state.products.find(
-    item => item.id === id
-  );
 
-  if (!product) {
-    toast("Listing unavailable.", "error");
+async function saveProfile(event) {
+
+  event.preventDefault();
+
+
+  if (!state.user) return;
+
+
+  const displayName =
+    $("#profileName").value.trim();
+
+  const phone =
+    normalisePhone($("#profilePhone").value);
+
+  const location =
+    $("#profileLocation").value.trim();
+
+
+  if (displayName.length < 2) {
+
+    setText(
+      "#profileMessage",
+      "Enter a valid name."
+    );
+
     return;
+
   }
 
-  state.cart[id] = Math.max(
-    1,
-    Number(state.cart[id] || 0) + 1
+
+  $("#saveProfileButton").disabled = true;
+
+  setText(
+    "#profileMessage",
+    "Saving profile…"
   );
 
-  persistLocal();
 
-  toast("Added to your cart on this device.");
+  try {
+
+    await updateProfile(
+      state.user,
+      {
+        displayName
+      }
+    );
+
+
+    await setDoc(
+      userRef(),
+      {
+
+        displayName,
+
+        phone,
+
+        location,
+
+        updatedAt: serverTimestamp()
+
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    if (state.seller) {
+
+      await setDoc(
+        sellerRef(),
+        {
+
+          displayName,
+
+          phone,
+
+          updatedAt: serverTimestamp()
+
+        },
+        {
+          merge: true
+        }
+      );
+
+    }
+
+
+    await loadProfile(state.user);
+
+    setAuthUI(state.user);
+
+    await loadDashboardData();
+
+
+    closeDialog($("#profileDialog"));
+
+    showToast("Profile updated successfully.");
+
+
+  } catch (error) {
+
+    showError(error, "Could not update profile.");
+
+    setText(
+      "#profileMessage",
+      "Could not save your profile. Try again."
+    );
+
+  } finally {
+
+    $("#saveProfileButton").disabled = false;
+
+  }
+
 }
 
-function removeCart(id) {
-  delete state.cart[id];
 
-  persistLocal();
-  openCart();
-}
+/* =========================================================
+   SELLER VERIFICATION STATUS
+========================================================= */
 
-function openCart() {
-  const rows = Object.entries(state.cart)
-    .map(([id, quantity]) => ({
-      product: state.products.find(
-        item => item.id === id
-      ),
-      id,
-      quantity: Number(quantity)
-    }))
-    .filter(item => item.product);
+function renderVerificationStatus() {
 
-  const total = rows.reduce(
-    (sum, item) =>
-      sum +
-      Number(item.product.price || 0) *
-      item.quantity,
-    0
+  const container = $("#sellerVerificationStatus");
+
+  if (!container) return;
+
+
+  if (!state.seller) {
+
+    container.innerHTML = `
+      <p>No seller verification application found.</p>
+    `;
+
+    return;
+
+  }
+
+
+  const status =
+    state.seller.verificationStatus || "not submitted";
+
+
+  const messages = {
+
+    pending:
+      "Your application is waiting for administrator review.",
+
+    approved:
+      "Your seller account has been verified.",
+
+    rejected:
+      "Your application was not approved. Review the administrator's feedback."
+
+  };
+
+
+  container.innerHTML = `
+
+    <p>
+      <strong>Status:</strong>
+      ${escapeHTML(status.toUpperCase())}
+    </p>
+
+    <p>
+      ${escapeHTML(
+        messages[status] || "Complete seller verification."
+      )}
+    </p>
+
+    ${
+      state.seller.rejectionReason
+        ? `<p>${escapeHTML(state.seller.rejectionReason)}</p>`
+        : ""
+    }
+
+  `;
+
+
+  setText(
+    "#verificationButton",
+    status === "approved"
+      ? "Verified seller"
+      : status === "pending"
+        ? "View application status"
+        : "Complete verification"
   );
 
-  openModal(
-    "Your cart",
-    rows.length
-      ? `
-        ${rows.map(item => `
-          <div
-            class="cart-row"
-            style="padding:12px 0;border-bottom:1px solid #ddd"
-          >
-            <strong>
-              ${escapeHTML(item.product.title)}
-            </strong>
+}
 
-            <p>
-              ${formatNaira(item.product.price)}
-              × ${item.quantity}
-            </p>
 
-            <div>
+/* =========================================================
+   MY LISTINGS
+========================================================= */
+
+async function loadMyListings() {
+
+  if (!state.user) return;
+
+
+  try {
+
+    const listingsQuery = query(
+      collection(db, "products"),
+      where("ownerId", "==", state.user.uid)
+    );
+
+
+    const snapshot = await getDocs(listingsQuery);
+
+
+    const listings = snapshot.docs.map(snap => ({
+      ...snap.data(),
+      id: snap.id
+    }));
+
+
+    setHTML(
+      "#myListingsContent",
+
+      listings.length
+
+        ? listings.map(item => `
+
+            <div class="dashboard-item">
+
+              <strong>
+                ${escapeHTML(item.title)}
+              </strong>
+
+              <span>
+                ${formatNaira(item.price)}
+              </span>
+
+              <small>
+                Status: ${escapeHTML(item.status || "Unknown")}
+              </small>
+
+            </div>
+
+          `).join("")
+
+        : "<p>You have not published any listings.</p>"
+
+    );
+
+
+  } catch (error) {
+
+    showError(error, "Could not load your listings.");
+
+    setText(
+      "#myListingsContent",
+      "Unable to load listings."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   SAVED PRODUCTS
+========================================================= */
+
+async function loadSavedProducts() {
+
+  if (!state.user) return;
+
+
+  try {
+
+    const savedQuery = query(
+      collection(db, "users", state.user.uid, "savedProducts"),
+      limit(20)
+    );
+
+
+    const snapshot = await getDocs(savedQuery);
+
+
+    const saved = snapshot.docs.map(snap => ({
+      ...snap.data(),
+      id: snap.id
+    }));
+
+
+    setHTML(
+      "#savedProductsContent",
+
+      saved.length
+
+        ? saved.map(item => `
+
+            <div class="dashboard-item">
+
+              <strong>
+                ${escapeHTML(item.title || "Saved product")}
+              </strong>
+
+              <small>
+                ${escapeHTML(item.category || "")}
+              </small>
+
               <button
-                class="button button-outline"
-                data-cart-action="minus"
-                data-id="${escapeHTML(item.id)}"
                 type="button"
-              >
-                −
-              </button>
-
-              <button
-                class="button button-outline"
-                data-cart-action="plus"
-                data-id="${escapeHTML(item.id)}"
-                type="button"
-              >
-                +
-              </button>
-
-              <button
-                class="button button-outline"
-                data-cart-action="remove"
-                data-id="${escapeHTML(item.id)}"
-                type="button"
+                class="text-button"
+                data-remove-saved="${escapeHTML(item.id)}"
               >
                 Remove
               </button>
+
             </div>
-          </div>
-        `).join("")}
 
-        <h3>Subtotal: ${formatNaira(total)}</h3>
+          `).join("")
 
-        <p class="modal-note">
-          This cart is stored on this device. Secure order creation,
-          stock reservation, delivery fees, and payment are not
-          connected yet, so checkout is disabled.
-        </p>
+        : "<p>No saved products yet.</p>"
 
-        <button
-          class="button button-primary"
-          type="button"
-          disabled
-        >
-          Checkout unavailable
-        </button>
-      `
-      : `
-        <div class="empty-state">
-          <h3>Your cart is empty</h3>
-          <p>Add real marketplace listings to begin.</p>
-        </div>
-      `
+    );
+
+
+  } catch (error) {
+
+    showError(error, "Could not load saved products.");
+
+    setText(
+      "#savedProductsContent",
+      "Saved products are currently unavailable."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   SAVE PRODUCT
+========================================================= */
+
+async function saveProduct(id) {
+
+  if (!state.user) {
+
+    openAuth("signin");
+
+    return;
+
+  }
+
+
+  const item = state.listings.find(
+    listing => listing.id === id
   );
 
-  all("[data-cart-action]").forEach(button => {
-    button.addEventListener("click", () => {
-      const id = button.dataset.id;
-      const action = button.dataset.cartAction;
+  if (!item) return;
 
-      if (action === "remove") {
-        delete state.cart[id];
-      } else {
-        const current = Number(state.cart[id] || 1);
 
-        state.cart[id] = Math.max(
-          1,
-          current + (action === "plus" ? 1 : -1)
-        );
+  try {
+
+    await setDoc(
+      doc(
+        db,
+        "users",
+        state.user.uid,
+        "savedProducts",
+        id
+      ),
+
+      {
+
+        productId: id,
+
+        title: item.title,
+
+        category: item.category,
+
+        price: item.price,
+
+        seller: item.seller,
+
+        savedAt: serverTimestamp()
+
       }
 
-      persistLocal();
-      openCart();
-    });
-  });
-}
-
-/* =========================================================
-   PART 3: PROFILE, SELLER APPLICATIONS & LISTINGS
-========================================================= */
-
-/* =========================================================
-   1. USER PROFILE
-========================================================= */
-
-function openProfile() {
-    if (!requireSignedIn()) return;
-
-    const profile = state.profile || {};
-
-    openModal(
-        "My Profile",
-        `
-        <form id="profileForm">
-
-            <div class="form-group">
-                <label for="profileName">Full name</label>
-                <input
-                    id="profileName"
-                    type="text"
-                    maxlength="100"
-                    required
-                    value="${escapeHTML(
-                        profile.displayName ||
-                        state.user.displayName ||
-                        ""
-                    )}"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="profilePhone">Phone number</label>
-                <input
-                    id="profilePhone"
-                    type="tel"
-                    maxlength="30"
-                    value="${escapeHTML(profile.phone || "")}"
-                    placeholder="Your contact number"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="profileLocation">Location</label>
-                <input
-                    id="profileLocation"
-                    type="text"
-                    maxlength="150"
-                    value="${escapeHTML(profile.location || "")}"
-                    placeholder="Town, LGA, State"
-                >
-            </div>
-
-            <p class="modal-note">
-                Email address:
-                ${escapeHTML(state.user.email || "")}
-            </p>
-
-            <button
-                class="button button-primary"
-                id="profileSave"
-                type="submit"
-            >
-                Save Profile
-            </button>
-
-        </form>
-        `
     );
 
-    bind("profileForm", "submit", async (event) => {
-        event.preventDefault();
 
-        if (!requireSignedIn()) return;
+    showToast("Product saved.");
 
-        const displayName = el("profileName").value.trim();
-        const phone = el("profilePhone").value.trim();
-        const location = el("profileLocation").value.trim();
-
-        if (!displayName) {
-            toast("Please enter your full name.", "error");
-            return;
-        }
-
-        const button = el("profileSave");
-        button.disabled = true;
-
-        try {
-            await updateDoc(
-                doc(db, "users", state.user.uid),
-                {
-                    displayName,
-                    phone,
-                    location
-                }
-            );
-
-            await updateProfile(state.user, {
-                displayName
-            });
-
-            state.profile = {
-                ...state.profile,
-                displayName,
-                phone,
-                location
-            };
-
-            closeModal();
-
-            toast("Your profile has been updated.");
-
-        } catch (error) {
-            console.error("Profile update failed:", error);
-
-            toast(
-                "Profile could not be saved. Check your Firestore rules.",
-                "error"
-            );
-
-        } finally {
-            const saveButton = el("profileSave");
-
-            if (saveButton) {
-                saveButton.disabled = false;
-            }
-        }
-    });
-}
+    await loadSavedProducts();
 
 
-/* =========================================================
-   2. SELLER APPLICATION
-========================================================= */
+  } catch (error) {
 
-function openSellerApplication() {
-    if (!requireSignedIn()) return;
+    showError(error, "Could not save product.");
 
-    if (
-        state.seller?.verificationStatus === "approved" &&
-        state.seller?.accountStatus === "active"
-    ) {
-        openSellerDashboard();
-        return;
-    }
-
-    openModal(
-        "Apply to Become a Seller",
-        `
-        <p>
-            Apply to sell poultry products on POULTRYLINK.
-            Applications are reviewed before seller access is granted.
-        </p>
-
-        <form id="sellerApplicationForm">
-
-            <div class="form-group">
-                <label for="sellerLegalName">
-                    Full or legal name
-                </label>
-
-                <input
-                    id="sellerLegalName"
-                    type="text"
-                    maxlength="150"
-                    required
-                    value="${escapeHTML(
-                        state.profile?.displayName ||
-                        state.user.displayName ||
-                        ""
-                    )}"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="sellerPhone">Phone number</label>
-
-                <input
-                    id="sellerPhone"
-                    type="tel"
-                    maxlength="30"
-                    required
-                    value="${escapeHTML(
-                        state.profile?.phone || ""
-                    )}"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="sellerState">State</label>
-
-                <input
-                    id="sellerState"
-                    type="text"
-                    maxlength="80"
-                    required
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="sellerLga">
-                    Local Government Area
-                </label>
-
-                <input
-                    id="sellerLga"
-                    type="text"
-                    maxlength="100"
-                    required
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="sellerFarmLocation">
-                    Farm or business location
-                </label>
-
-                <input
-                    id="sellerFarmLocation"
-                    type="text"
-                    maxlength="250"
-                    required
-                >
-            </div>
-
-            <fieldset class="form-group">
-                <legend>
-                    Products or services you intend to sell
-                </legend>
-
-                ${CATEGORIES.map(category => `
-                    <label style="display:block; margin:8px 0;">
-                        <input
-                            type="checkbox"
-                            name="sellerCategory"
-                            value="${escapeHTML(category)}"
-                        >
-                        ${escapeHTML(category)}
-                    </label>
-                `).join("")}
-
-            </fieldset>
-
-            <p class="modal-note">
-                Submit accurate information.
-                Never include your password or payment details.
-            </p>
-
-            <button
-                class="button button-primary"
-                id="sellerApplySubmit"
-                type="submit"
-            >
-                Submit Application
-            </button>
-
-        </form>
-        `
+    showToast(
+      "Could not save product. Check your account permissions."
     );
 
-    bind(
-        "sellerApplicationForm",
-        "submit",
-        async (event) => {
-            event.preventDefault();
+  }
 
-            if (!requireSignedIn()) return;
-
-            const selectedCategories = [
-                ...document.querySelectorAll(
-                    'input[name="sellerCategory"]:checked'
-                )
-            ].map(input => input.value);
-
-            if (selectedCategories.length === 0) {
-                toast(
-                    "Choose at least one product or service category.",
-                    "error"
-                );
-
-                return;
-            }
-
-            const button = el("sellerApplySubmit");
-            button.disabled = true;
-
-            try {
-                const applicationRef = doc(
-                    db,
-                    "sellerApplications",
-                    state.user.uid
-                );
-
-                const existingApplication = await getDoc(
-                    applicationRef
-                );
-
-                if (existingApplication.exists()) {
-                    toast(
-                        "An application already exists. Contact support to check its status.",
-                        "error"
-                    );
-
-                    return;
-                }
-
-                const applicationData = {
-                    applicantUid: state.user.uid,
-
-                    legalName:
-                        el("sellerLegalName").value.trim(),
-
-                    phone:
-                        el("sellerPhone").value.trim(),
-
-                    state:
-                        el("sellerState").value.trim(),
-
-                    lga:
-                        el("sellerLga").value.trim(),
-
-                    farmLocation:
-                        el("sellerFarmLocation").value.trim(),
-
-                    intendedProducts: selectedCategories,
-
-                    evidencePaths: [],
-
-                    status: "pending",
-
-                    submittedAt: serverTimestamp()
-                };
-
-                await setDoc(
-                    applicationRef,
-                    applicationData
-                );
-
-                closeModal();
-
-                toast(
-                    "Your seller application has been submitted for review."
-                );
-
-            } catch (error) {
-                console.error(
-                    "Seller application failed:",
-                    error
-                );
-
-                toast(
-                    "Application failed. Check your email verification and Firestore rules.",
-                    "error"
-                );
-
-            } finally {
-                const submitButton = el("sellerApplySubmit");
-
-                if (submitButton) {
-                    submitButton.disabled = false;
-                }
-            }
-        }
-    );
 }
 
 
 /* =========================================================
-   3. CREATE PRODUCT LISTING
+   REMOVE SAVED PRODUCT
 ========================================================= */
 
-function openListingForm() {
-    if (!requireSignedIn()) return;
+async function removeSavedProduct(id) {
 
-    const sellerIsApproved =
-        state.seller?.verificationStatus === "approved" &&
-        state.seller?.accountStatus === "active";
+  if (!state.user) return;
 
-    if (!sellerIsApproved) {
-        toast(
-            "Only approved and active sellers can create listings.",
-            "error"
-        );
 
-        return;
-    }
+  try {
 
-    openModal(
-        "Create a Product Listing",
-        `
-        <form id="listingForm">
-
-            <div class="form-group">
-                <label for="listingTitle">Product title</label>
-
-                <input
-                    id="listingTitle"
-                    type="text"
-                    maxlength="150"
-                    required
-                    placeholder="Example: Fresh broiler chickens"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="listingCategory">Category</label>
-
-                <select id="listingCategory" required>
-                    ${CATEGORIES.map(category => `
-                        <option value="${escapeHTML(category)}">
-                            ${escapeHTML(category)}
-                        </option>
-                    `).join("")}
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="listingDescription">
-                    Product description
-                </label>
-
-                <textarea
-                    id="listingDescription"
-                    maxlength="5000"
-                    rows="4"
-                    required
-                    placeholder="Describe your product..."
-                ></textarea>
-            </div>
-
-            <div class="form-group">
-                <label for="listingPrice">
-                    Price in Nigerian naira (₦)
-                </label>
-
-                <input
-                    id="listingPrice"
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    required
-                    placeholder="Example: 15000"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="listingUnit">Selling unit</label>
-
-                <input
-                    id="listingUnit"
-                    type="text"
-                    maxlength="60"
-                    required
-                    placeholder="Per bird, crate, bag, etc."
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="listingLocation">Product location</label>
-
-                <input
-                    id="listingLocation"
-                    type="text"
-                    maxlength="150"
-                    required
-                    placeholder="Town, LGA, State"
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="listingImageUrls">
-                    Product image URLs
-                </label>
-
-                <textarea
-                    id="listingImageUrls"
-                    rows="3"
-                    placeholder="Enter HTTPS image URLs, one per line"
-                ></textarea>
-            </div>
-
-            <p class="modal-note">
-                New listings are submitted for review.
-                Only HTTPS image URLs are accepted by this form.
-                Direct image uploads are not implemented here.
-            </p>
-
-            <button
-                class="button button-primary"
-                id="listingSubmit"
-                type="submit"
-            >
-                Submit Listing
-            </button>
-
-        </form>
-        `
+    await deleteDoc(
+      doc(
+        db,
+        "users",
+        state.user.uid,
+        "savedProducts",
+        id
+      )
     );
 
-    bind("listingForm", "submit", async (event) => {
-        event.preventDefault();
 
-        if (!requireSignedIn()) return;
+    await loadSavedProducts();
 
-        const sellerIsStillApproved =
-            state.seller?.verificationStatus === "approved" &&
-            state.seller?.accountStatus === "active";
+    showToast("Saved product removed.");
 
-        if (!sellerIsStillApproved) {
-            toast(
-                "Your seller account is not currently approved and active.",
-                "error"
-            );
 
-            return;
-        }
+  } catch (error) {
 
-        const title = el("listingTitle").value.trim();
-        const description =
-            el("listingDescription").value.trim();
+    showError(error, "Could not remove saved product.");
 
-        const price = Number(
-            el("listingPrice").value
-        );
+  }
 
-        const unit = el("listingUnit").value.trim();
-        const location = el("listingLocation").value.trim();
-
-        const imageUrls = el("listingImageUrls")
-            .value
-            .split(/\r?\n/)
-            .map(url => url.trim())
-            .filter(Boolean);
-
-        if (!title || !description || !unit || !location) {
-            toast(
-                "Complete all required listing fields.",
-                "error"
-            );
-
-            return;
-        }
-
-        if (!Number.isFinite(price) || price <= 0) {
-            toast(
-                "Enter a valid price greater than zero.",
-                "error"
-            );
-
-            return;
-        }
-
-        const invalidImageUrl = imageUrls.some(url => {
-            try {
-                const parsedUrl = new URL(url);
-
-                return parsedUrl.protocol !== "https:";
-
-            } catch {
-                return true;
-            }
-        });
-
-        if (invalidImageUrl) {
-            toast(
-                "Every image URL must be a valid HTTPS URL.",
-                "error"
-            );
-
-            return;
-        }
-
-        const button = el("listingSubmit");
-        button.disabled = true;
-
-        try {
-            const listingData = {
-                sellerId: state.user.uid,
-
-                title,
-
-                description,
-
-                category: el("listingCategory").value,
-
-                price,
-
-                unit,
-
-                location,
-
-                imageUrls,
-
-                status: "pending_review",
-
-                createdAt: serverTimestamp(),
-
-                updatedAt: serverTimestamp()
-            };
-
-            await addDoc(
-                collection(db, "products"),
-                listingData
-            );
-
-            closeModal();
-
-            toast(
-                "Your listing has been submitted for review."
-            );
-
-            await loadProducts();
-
-        } catch (error) {
-            console.error(
-                "Product listing failed:",
-                error
-            );
-
-            toast(
-                "Listing could not be saved. Check seller approval and Firestore rules.",
-                "error"
-            );
-
-        } finally {
-            const submitButton = el("listingSubmit");
-
-            if (submitButton) {
-                submitButton.disabled = false;
-            }
-        }
-    });
 }
 
 
 /* =========================================================
-   4. SELLER DASHBOARD
+   MY ORDERS
 ========================================================= */
 
-async function openSellerDashboard() {
-    if (!requireSignedIn()) return;
+async function loadMyOrders() {
 
-    try {
-        const productsQuery = query(
-            collection(db, "products"),
-            where("sellerId", "==", state.user.uid)
-        );
+  if (!state.user) return;
 
-        const snapshot = await getDocs(productsQuery);
 
-        const listings = snapshot.docs.map(documentSnapshot => ({
-            id: documentSnapshot.id,
-            ...documentSnapshot.data()
-        }));
+  try {
 
-        const listingMarkup = listings.length
-            ? listings.map(product => `
-                <div
-                    style="
-                        padding:12px 0;
-                        border-bottom:1px solid #ddd;
-                    "
-                >
-                    <strong>
-                        ${escapeHTML(product.title || "Untitled product")}
-                    </strong>
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("buyerId", "==", state.user.uid),
+      limit(20)
+    );
 
-                    <p>
-                        ${formatNaira(product.price)}
-                        ${escapeHTML(product.unit || "")}
-                    </p>
 
-                    <p>
-                        Status:
-                        ${escapeHTML(product.status || "Unknown")}
-                    </p>
-                </div>
-            `).join("")
-            : `
-                <p>
-                    You have not created any product listings yet.
-                </p>
-            `;
+    const snapshot = await getDocs(ordersQuery);
 
-        openModal(
-            "Seller Dashboard",
-            `
-            <div class="seller-status">
 
-                <p>
-                    <strong>Verification:</strong>
-                    ${escapeHTML(
-                        state.seller?.verificationStatus ||
-                        "No seller record"
-                    )}
-                </p>
+    const orders = snapshot.docs.map(snap => ({
+      ...snap.data(),
+      id: snap.id
+    }));
 
-                <p>
-                    <strong>Account status:</strong>
-                    ${escapeHTML(
-                        state.seller?.accountStatus ||
-                        "Not active"
-                    )}
-                </p>
+
+    setHTML(
+      "#myOrdersContent",
+
+      orders.length
+
+        ? orders.map(order => `
+
+            <div class="dashboard-item">
+
+              <strong>
+                Order #${escapeHTML(order.id.slice(0, 8))}
+              </strong>
+
+              <span>
+                ${formatNaira(order.total)}
+              </span>
+
+              <small>
+                Status: ${escapeHTML(order.status || "Pending")}
+              </small>
 
             </div>
 
-            <button
-                class="button button-primary"
-                id="newListingButton"
-                type="button"
-            >
-                Create Product Listing
-            </button>
+          `).join("")
 
-            <h3>
-                My Listings (${listings.length})
-            </h3>
+        : "<p>You have no orders yet.</p>"
 
-            <div class="seller-listings">
-                ${listingMarkup}
-            </div>
+    );
 
-            <p class="modal-note">
-                Order management, inventory management, and
-                listing editing require additional backend
-                functionality.
-            </p>
-            `
-        );
 
-        bind(
-            "newListingButton",
-            "click",
-            openListingForm
-        );
+  } catch (error) {
 
-    } catch (error) {
-        console.error(
-            "Seller dashboard failed:",
-            error
-        );
+    showError(error, "Could not load orders.");
 
-        toast(
-            "Seller listings could not be loaded. Check your Firestore permissions.",
-            "error"
-        );
-    }
+    setText(
+      "#myOrdersContent",
+      "Order information is currently unavailable."
+    );
+
+  }
+
 }
 
-/* =========================================================
-   PART 4: DASHBOARD, SAVED PRODUCTS & INITIALIZATION
-========================================================= */
-
 
 /* =========================================================
-   1. MAIN USER DASHBOARD
+   RECENT ACTIVITIES
 ========================================================= */
 
-function openDashboard() {
-    if (!requireSignedIn()) return;
+async function loadRecentActivities() {
 
-    const displayName =
-        state.profile?.displayName ||
-        state.user.displayName ||
-        state.user.email ||
-        "User";
+  if (!state.user) return;
 
-    openModal(
-        "My Dashboard",
-        `
-        <p>
-            Signed in as
-            <strong>${escapeHTML(displayName)}</strong>
-        </p>
 
-        <div style="display:grid;gap:10px;">
+  try {
 
-            <button
-                class="button button-primary"
-                id="dashboardProfile"
-                type="button"
-            >
-                Profile & Settings
-            </button>
+    const activityQuery = query(
+      collection(db, "users", state.user.uid, "activities"),
+      orderBy("createdAt", "desc"),
+      limit(10)
+    );
 
-            <button
-                class="button button-outline"
-                id="dashboardSaved"
-                type="button"
-            >
-                Saved Products (${state.saved.length})
-            </button>
 
-            <button
-                class="button button-outline"
-                id="dashboardCart"
-                type="button"
-            >
-                Shopping Cart (${Object.keys(state.cart).length})
-            </button>
+    const snapshot = await getDocs(activityQuery);
 
-            <button
-                class="button button-outline"
-                id="dashboardSellerApply"
-                type="button"
-            >
-                Apply to Sell / Seller Status
-            </button>
 
-            <button
-                class="button button-outline"
-                id="dashboardSeller"
-                type="button"
-            >
-                Seller Dashboard
-            </button>
+    const activities = snapshot.docs.map(snap => ({
+      ...snap.data(),
+      id: snap.id
+    }));
+
+
+    setHTML(
+      "#recentActivitiesContent",
+
+      activities.length
+
+        ? activities.map(activity => `
+
+            <div class="dashboard-item">
+
+              <strong>
+                ${escapeHTML(activity.title || "Account activity")}
+              </strong>
+
+              <small>
+                ${escapeHTML(activity.description || "")}
+              </small>
+
+            </div>
+
+          `).join("")
+
+        : "<p>No recent activities.</p>"
+
+    );
+
+
+  } catch (error) {
+
+    showError(error, "Could not load recent activities.");
+
+    setText(
+      "#recentActivitiesContent",
+      "Activity history is currently unavailable."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   ACCOUNT SETTINGS
+========================================================= */
+
+function openAccountSettings() {
+
+  if (!state.user) return;
+
+
+  setHTML(
+    "#accountSettingsContent",
+
+    `
+
+      <p>
+        <strong>Email:</strong>
+        ${escapeHTML(state.user.email || "")}
+      </p>
+
+      <p>
+        <strong>Account created:</strong>
+        ${friendlyDate(state.user.metadata.creationTime
+          ? new Date(state.user.metadata.creationTime)
+          : null)}
+      </p>
+
+      <p>
+        <strong>Email verified:</strong>
+        ${state.user.emailVerified ? "Yes" : "No"}
+      </p>
+
+    `
+  );
+
+
+  openDialog("settingsDialog");
+
+}
+
+
+/* =========================================================
+   ADMINISTRATOR DASHBOARD
+========================================================= */
+
+async function loadAdminDashboard() {
+
+  if (!state.user || !state.isAdmin) return;
+
+
+  try {
+
+    const [
+      usersSnapshot,
+      applicationsSnapshot,
+      subscriptionsSnapshot,
+      listingsSnapshot
+    ] = await Promise.all([
+
+      getDocs(collection(db, "users")),
+
+      getDocs(
+        query(
+          collection(db, "sellerApplications"),
+          where("status", "==", "pending")
+        )
+      ),
+
+      getDocs(
+        query(
+          collection(db, "subscriptions"),
+          where("status", "==", "active")
+        )
+      ),
+
+      getDocs(
+        query(
+          collection(db, "products"),
+          where("status", "==", "active")
+        )
+      )
+
+    ]);
+
+
+    setText(
+      "#adminTotalUsers",
+      usersSnapshot.size
+    );
+
+    setText(
+      "#adminPendingVerifications",
+      applicationsSnapshot.size
+    );
+
+    setText(
+      "#adminActiveSubscriptions",
+      subscriptionsSnapshot.size
+    );
+
+    setText(
+      "#adminActiveListings",
+      listingsSnapshot.size
+    );
+
+
+    renderAdminApplications(applicationsSnapshot);
+
+    renderAdminUsers(usersSnapshot);
+
+    renderAdminSubscriptions(subscriptionsSnapshot);
+
+    renderAdminListings(listingsSnapshot);
+
+
+  } catch (error) {
+
+    showError(
+      error,
+      "Could not load administrator information."
+    );
+
+    showToast(
+      "Administrator data could not be loaded. Check permissions."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   ADMIN: SELLER APPLICATIONS
+========================================================= */
+
+function renderAdminApplications(snapshot) {
+
+  const container = $("#adminVerificationList");
+
+  if (!container) return;
+
+
+  if (snapshot.empty) {
+
+    container.innerHTML =
+      "<p>No pending seller applications.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML = snapshot.docs.map(snap => {
+
+    const item = snap.data();
+
+    return `
+
+      <div class="dashboard-item">
+
+        <strong>
+          ${escapeHTML(item.businessName)}
+        </strong>
+
+        <small>
+          ${escapeHTML(item.fullName)}
+        </small>
+
+        <small>
+          ${escapeHTML(item.town)}, ${escapeHTML(item.state)}
+        </small>
+
+        <small>
+          ${escapeHTML(item.email)}
+        </small>
+
+        <div class="card-actions">
+
+          <button
+            class="btn btn-primary"
+            type="button"
+            data-approve-seller="${escapeHTML(snap.id)}"
+          >
+            Approve
+          </button>
+
+          <button
+            class="btn btn-outline"
+            type="button"
+            data-reject-seller="${escapeHTML(snap.id)}"
+          >
+            Reject
+          </button>
 
         </div>
 
-        <h3>Orders & Activity</h3>
+      </div>
 
-        <p class="modal-note">
-            Order history, notifications, and in-platform
-            messaging are not yet connected to a backend.
-        </p>
-        `
-    );
+    `;
 
-    bind(
-        "dashboardProfile",
-        "click",
-        openProfile
-    );
+  }).join("");
 
-    bind(
-        "dashboardSaved",
-        "click",
-        openSaved
-    );
-
-    bind(
-        "dashboardCart",
-        "click",
-        openCart
-    );
-
-    bind(
-        "dashboardSellerApply",
-        "click",
-        openSellerApplication
-    );
-
-    bind(
-        "dashboardSeller",
-        "click",
-        openSellerDashboard
-    );
 }
 
 
 /* =========================================================
-   2. SAVED PRODUCTS
+   ADMIN: APPROVE SELLER
 ========================================================= */
 
-function openSaved() {
-    const savedProducts = state.saved
-        .map(id => state.products.find(product => product.id === id))
-        .filter(Boolean);
+async function approveSeller(uid) {
 
-    const content = savedProducts.length
-        ? savedProducts.map(product => `
-            <div
-                style="
-                    padding:12px 0;
-                    border-bottom:1px solid #ddd;
-                "
-            >
+  if (!state.isAdmin) {
 
-                <strong>
-                    ${escapeHTML(product.title)}
-                </strong>
+    showToast("Administrator access required.");
 
-                <p>
-                    ${formatNaira(product.price)}
-                    ${escapeHTML(product.unit || "")}
-                </p>
+    return;
 
-                <button
-                    class="button button-outline"
-                    data-saved-remove="${escapeHTML(product.id)}"
-                    type="button"
-                >
-                    Remove
-                </button>
+  }
 
-                <button
-                    class="button button-primary"
-                    data-saved-details="${escapeHTML(product.id)}"
-                    type="button"
-                >
-                    View Details
-                </button>
 
-            </div>
-        `).join("")
-        : `
-            <div class="empty-state">
-                <h3>No Saved Products</h3>
+  if (!window.confirm(
+    "Approve this seller verification application?"
+  )) {
 
-                <p>
-                    Save products from the marketplace to
-                    find them more easily later.
-                </p>
-            </div>
-        `;
+    return;
 
-    openModal(
-        "Saved Products",
-        content
+  }
+
+
+  try {
+
+    const applicationSnapshot = await getDoc(
+      doc(db, "sellerApplications", uid)
     );
 
-    all("[data-saved-remove]").forEach(button => {
-        button.addEventListener("click", () => {
-            toggleSaved(button.dataset.savedRemove);
-            openSaved();
-        });
-    });
 
-    all("[data-saved-details]").forEach(button => {
-        button.addEventListener("click", () => {
-            details(button.dataset.savedDetails);
-        });
-    });
-}
+    if (!applicationSnapshot.exists()) {
 
+      throw new Error(
+        "Seller application was not found."
+      );
 
-/* =========================================================
-   3. CONTACT SELLER
-========================================================= */
-
-function openContact(productId) {
-    const product = state.products.find(
-        item => item.id === productId
-    );
-
-    if (!product) {
-        toast(
-            "This product is no longer available.",
-            "error"
-        );
-
-        return;
     }
 
-    openModal(
-        "Contact Seller",
-        `
-        <p>
-            You selected
-            <strong>${escapeHTML(product.title)}</strong>.
-        </p>
 
-        <p>
-            <strong>Price:</strong>
-            ${formatNaira(product.price)}
-            ${escapeHTML(product.unit || "")}
-        </p>
+    const application = applicationSnapshot.data();
 
-        <p>
-            <strong>Location:</strong>
-            ${escapeHTML(product.location || "Not provided")}
-        </p>
 
-        <p class="modal-note">
-            Direct messaging is not yet connected.
-            No message has been sent and no order has been created.
-            Confirm seller details and payment terms before
-            completing a transaction.
-        </p>
+    if (application.status !== "pending") {
+
+      throw new Error(
+        "This application is no longer pending."
+      );
+
+    }
+
+
+    await updateDoc(
+      doc(db, "sellerApplications", uid),
+      {
+
+        status: "approved",
+
+        reviewedAt: serverTimestamp(),
+
+        reviewedBy: state.user.uid
+
+      }
+    );
+
+
+    await setDoc(
+      doc(db, "sellers", uid),
+      {
+
+        verificationStatus: "approved",
+
+        verifiedAt: serverTimestamp(),
+
+        updatedAt: serverTimestamp()
+
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    showToast("Seller approved.");
+
+    await loadAdminDashboard();
+
+
+  } catch (error) {
+
+    showError(error, "Could not approve seller.");
+
+    showToast(
+      "Approval failed. Confirm administrator permissions."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   ADMIN: REJECT SELLER
+========================================================= */
+
+async function rejectSeller(uid) {
+
+  if (!state.isAdmin) {
+
+    showToast("Administrator access required.");
+
+    return;
+
+  }
+
+
+  const reason = window.prompt(
+    "Enter the reason for rejecting this application:"
+  );
+
+
+  if (!reason || !reason.trim()) return;
+
+
+  try {
+
+    await updateDoc(
+      doc(db, "sellerApplications", uid),
+      {
+
+        status: "rejected",
+
+        rejectionReason: reason.trim(),
+
+        reviewedAt: serverTimestamp(),
+
+        reviewedBy: state.user.uid
+
+      }
+    );
+
+
+    await setDoc(
+      doc(db, "sellers", uid),
+      {
+
+        verificationStatus: "rejected",
+
+        rejectionReason: reason.trim(),
+
+        updatedAt: serverTimestamp()
+
+      },
+      {
+        merge: true
+      }
+    );
+
+
+    showToast("Seller application rejected.");
+
+    await loadAdminDashboard();
+
+
+  } catch (error) {
+
+    showError(error, "Could not reject seller.");
+
+    showToast(
+      "Rejection failed. Check administrator permissions."
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   ADMIN: USERS
+========================================================= */
+
+function renderAdminUsers(snapshot) {
+
+  const container = $("#adminUsersList");
+
+  if (!container) return;
+
+
+  if (snapshot.empty) {
+
+    container.innerHTML =
+      "<p>No registered users found.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML = snapshot.docs.map(snap => {
+
+    const user = snap.data();
+
+    return `
+
+      <div class="dashboard-item">
+
+        <strong>
+          ${escapeHTML(user.displayName || "User")}
+        </strong>
+
+        <small>
+          ${escapeHTML(user.email || "")}
+        </small>
+
+        <small>
+          Account type:
+          ${escapeHTML(user.accountType || "buyer")}
+        </small>
+
+      </div>
+
+    `;
+
+  }).join("");
+
+}
+
+
+/* =========================================================
+   ADMIN: SUBSCRIPTIONS
+========================================================= */
+
+function renderAdminSubscriptions(snapshot) {
+
+  const container = $("#adminSubscriptionsList");
+
+  if (!container) return;
+
+
+  if (snapshot.empty) {
+
+    container.innerHTML =
+      "<p>No active subscriptions.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML = snapshot.docs.map(snap => {
+
+    const item = snap.data();
+
+    return `
+
+      <div class="dashboard-item">
+
+        <strong>
+          ${escapeHTML(item.plan || "Seller subscription")}
+        </strong>
+
+        <small>
+          Seller ID: ${escapeHTML(snap.id)}
+        </small>
+
+        <small>
+          Expires: ${friendlyDate(item.expiresAt)}
+        </small>
+
+      </div>
+
+    `;
+
+  }).join("");
+
+}
+
+
+/* =========================================================
+   ADMIN: MARKETPLACE LISTINGS
+========================================================= */
+
+function renderAdminListings(snapshot) {
+
+  const container = $("#adminListingsList");
+
+  if (!container) return;
+
+
+  if (snapshot.empty) {
+
+    container.innerHTML =
+      "<p>No active listings.</p>";
+
+    return;
+
+  }
+
+
+  container.innerHTML = snapshot.docs.map(snap => {
+
+    const item = snap.data();
+
+    return `
+
+      <div class="dashboard-item">
+
+        <strong>
+          ${escapeHTML(item.title || "Product")}
+        </strong>
+
+        <small>
+          ${formatNaira(item.price)}
+        </small>
+
+        <small>
+          Seller: ${escapeHTML(item.seller || "Unknown")}
+        </small>
 
         <button
-            class="button button-primary"
-            id="closeContact"
-            type="button"
+          type="button"
+          class="btn btn-outline"
+          data-moderate-listing="${escapeHTML(snap.id)}"
         >
-            Close
+          Suspend listing
         </button>
-        `
+
+      </div>
+
+    `;
+
+  }).join("");
+
+}
+
+
+/* =========================================================
+   ADMIN: SUSPEND LISTING
+========================================================= */
+
+async function suspendListing(id) {
+
+  if (!state.isAdmin) {
+
+    showToast("Administrator access required.");
+
+    return;
+
+  }
+
+
+  if (!window.confirm(
+    "Suspend this marketplace listing?"
+  )) return;
+
+
+  try {
+
+    await updateDoc(
+      doc(db, "products", id),
+      {
+
+        status: "suspended",
+
+        suspendedAt: serverTimestamp(),
+
+        suspendedBy: state.user.uid
+
+      }
     );
 
-    bind(
-        "closeContact",
-        "click",
-        closeModal
-    );
-}
+
+    showToast("Listing suspended.");
+
+    await loadListings();
+
+    await loadAdminDashboard();
 
 
-/* =========================================================
-   4. SEARCH, FILTERS & SORTING
-========================================================= */
+  } catch (error) {
 
-function initSearchAndFilters() {
-    const searchForm = el("searchForm");
-    const searchInput = el("searchInput");
-    const categoryFilter = el("categoryFilter");
-    const sortFilter = el("sortFilter");
+    showError(error, "Could not suspend listing.");
 
-    searchForm?.addEventListener("submit", event => {
-        event.preventDefault();
-
-        state.search = searchInput?.value || "";
-
-        renderProducts();
-
-        el("marketplace")?.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-    });
-
-    searchInput?.addEventListener("input", () => {
-        state.search = searchInput.value;
-
-        renderProducts();
-    });
-
-    categoryFilter?.addEventListener("change", () => {
-        state.category = categoryFilter.value;
-
-        updateCategories();
-        renderProducts();
-    });
-
-    sortFilter?.addEventListener("change", () => {
-        state.sort = sortFilter.value;
-
-        renderProducts();
-    });
-
-    bind(
-        "clearFiltersButton",
-        "click",
-        () => {
-            state.search = "";
-            state.category = "All";
-            state.sort = "featured";
-
-            if (searchInput) {
-                searchInput.value = "";
-            }
-
-            if (categoryFilter) {
-                categoryFilter.value = "All";
-            }
-
-            if (sortFilter) {
-                sortFilter.value = "featured";
-            }
-
-            updateCategories();
-            renderProducts();
-        }
+    showToast(
+      "Suspension failed. Check administrator permissions."
     );
 
-    all(".category-card").forEach(button => {
-        button.addEventListener("click", () => {
-            state.category = button.dataset.category || "All";
+  }
 
-            if (categoryFilter) {
-                categoryFilter.value = state.category;
-            }
-
-            updateCategories();
-            renderProducts();
-
-            el("marketplace")?.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-        });
-    });
 }
 
 
 /* =========================================================
-   5. CATEGORY BUTTON STATES
+   SEARCH EVENTS
 ========================================================= */
 
-function updateCategories() {
-    all(".category-card").forEach(button => {
-        const isActive =
-            button.dataset.category === state.category;
+$("#searchForm").addEventListener(
+  "submit",
+  event => {
 
-        button.classList.toggle(
-            "active",
-            isActive
-        );
+    event.preventDefault();
 
-        button.setAttribute(
-            "aria-pressed",
-            String(isActive)
-        );
+    state.query = $("#searchInput").value;
+
+    state.category = $("#categoryFilter").value;
+
+    state.location = $("#locationFilter").value;
+
+    renderListings();
+
+    $("#marketplace").scrollIntoView({
+      behavior: "smooth",
+      block: "start"
     });
-}
+
+  }
+);
+
+
+$("#categoryChips").addEventListener(
+  "click",
+  event => {
+
+    const chip = event.target.closest("[data-category]");
+
+    if (!chip) return;
+
+    state.category = chip.dataset.category;
+
+    $("#categoryFilter").value =
+      state.category;
+
+    renderListings();
+
+  }
+);
+
+
+$("#sortSelect").addEventListener(
+  "change",
+  event => {
+
+    state.sort = event.target.value;
+
+    renderListings();
+
+  }
+);
+
+
+$("#clearFiltersButton").addEventListener(
+  "click",
+  resetFilters
+);
+
+
+$("#emptyClearButton").addEventListener(
+  "click",
+  resetFilters
+);
 
 
 /* =========================================================
-   6. PRODUCT BUTTON HANDLERS
+   SELLER BUTTONS
 ========================================================= */
 
-function initProductActions() {
-    const productGrid = el("productGrid");
+[
+  "sellHeaderButton",
+  "heroSellButton",
+  "sellBannerButton"
+].forEach(id => {
 
-    if (!productGrid) return;
+  const button = document.getElementById(id);
 
-    productGrid.addEventListener("click", event => {
-        const button = event.target.closest("[data-action]");
+  if (!button) return;
 
-        if (!button || !productGrid.contains(button)) {
-            return;
-        }
+  button.addEventListener(
+    "click",
+    () => openListingForm()
+  );
 
-        const productId = button.dataset.id;
-        const action = button.dataset.action;
-
-        if (!productId) return;
-
-        switch (action) {
-            case "details":
-                details(productId);
-                break;
-
-            case "save":
-                toggleSaved(productId);
-                break;
-
-            case "cart":
-                addToCart(productId);
-                break;
-
-            case "contact":
-                openContact(productId);
-                break;
-
-            default:
-                console.warn(
-                    "Unknown product action:",
-                    action
-                );
-        }
-    });
-}
+});
 
 
 /* =========================================================
-   7. MOBILE NAVIGATION
+   SIGN IN / ACCOUNT BUTTON
 ========================================================= */
 
-function initMobileNav() {
-    const menuToggle = el("menuToggle");
-    const mainNav = el("mainNav");
+$("#signInButton").addEventListener(
+  "click",
+  async () => {
 
-    if (!menuToggle || !mainNav) return;
+    if (state.user) {
 
-    function closeMenu() {
-        mainNav.classList.remove("is-open");
+      await openDashboard();
 
-        menuToggle.setAttribute(
-            "aria-expanded",
-            "false"
-        );
+    } else {
 
-        menuToggle.textContent = "☰";
+      openAuth("signin");
+
     }
 
-    menuToggle.addEventListener("click", () => {
-        const isOpen = mainNav.classList.toggle("is-open");
-
-        menuToggle.setAttribute(
-            "aria-expanded",
-            String(isOpen)
-        );
-
-        menuToggle.textContent = isOpen ? "✕" : "☰";
-    });
-
-    mainNav.querySelectorAll("a").forEach(link => {
-        link.addEventListener("click", closeMenu);
-    });
-
-    document.addEventListener("click", event => {
-        if (
-            !mainNav.contains(event.target) &&
-            !menuToggle.contains(event.target)
-        ) {
-            closeMenu();
-        }
-    });
-}
+  }
+);
 
 
 /* =========================================================
-   8. HEADER & FOOTER BUTTONS
+   AUTH EVENTS
 ========================================================= */
 
-function initHeaderAndFooter() {
-    bind(
-        "becomeSellerButton",
-        "click",
-        openSellerApplication
-    );
+$("#authModeButton").addEventListener(
+  "click",
+  () => {
 
-    bind(
-        "footerSellerButton",
-        "click",
-        openSellerApplication
-    );
+    state.authMode =
+      state.authMode === "signin"
+        ? "signup"
+        : "signin";
 
-    const currentYear = el("currentYear");
+    setText("#authMessage", "");
 
-    if (currentYear) {
-        currentYear.textContent = String(
-            new Date().getFullYear()
-        );
+    updateAuthModeUI();
+
+  }
+);
+
+
+$("#authForm").addEventListener(
+  "submit",
+  handleAuthSubmit
+);
+
+
+/* =========================================================
+   FORM EVENTS
+========================================================= */
+
+$("#listingForm").addEventListener(
+  "submit",
+  saveListing
+);
+
+
+$("#verificationForm").addEventListener(
+  "submit",
+  submitVerification
+);
+
+
+$("#profileForm").addEventListener(
+  "submit",
+  saveProfile
+);
+
+
+/* =========================================================
+   DASHBOARD EVENTS
+========================================================= */
+
+$("#dashboardCloseButton").addEventListener(
+  "click",
+  closeDashboard
+);
+
+
+$("#editProfileButton").addEventListener(
+  "click",
+  openProfileEditor
+);
+
+
+$("#verificationButton").addEventListener(
+  "click",
+  openVerificationForm
+);
+
+
+$("#subscriptionButton").addEventListener(
+  "click",
+  () => {
+
+    if (!state.user) {
+
+      openAuth("signin");
+
+      return;
+
     }
 
-    let cartButton = el("cartButton");
+    openDialog("subscriptionDialog");
 
-    if (!cartButton) {
-        const mainNav = el("mainNav");
+  }
+);
 
-        if (mainNav) {
-            cartButton = document.createElement("button");
 
-            cartButton.id = "cartButton";
-            cartButton.type = "button";
-            cartButton.className = "nav-link";
-            cartButton.textContent = "Cart";
+$("#manageListingsButton").addEventListener(
+  "click",
+  () => {
 
-            mainNav.appendChild(cartButton);
-        }
+    $("#marketplace").scrollIntoView({
+      behavior: "smooth"
+    });
+
+  }
+);
+
+
+$("#accountSettingsButton").addEventListener(
+  "click",
+  openAccountSettings
+);
+
+
+/* =========================================================
+   SUBSCRIPTION BUTTONS
+========================================================= */
+
+$$("[data-subscription-plan]").forEach(button => {
+
+  button.addEventListener(
+    "click",
+    () => {
+
+      startSubscription(
+        button.dataset.subscriptionPlan
+      );
+
+    }
+  );
+
+});
+
+
+/* =========================================================
+   MOBILE NAVIGATION
+========================================================= */
+
+$("#menuButton").addEventListener(
+  "click",
+  () => {
+
+    const nav = $("#desktopNav");
+
+    const isOpen =
+      nav.classList.toggle("open");
+
+
+    $("#menuButton").setAttribute(
+      "aria-expanded",
+      String(isOpen)
+    );
+
+
+    $("#menuButton").textContent =
+      isOpen ? "×" : "☰";
+
+  }
+);
+
+
+$$("#desktopNav a").forEach(link => {
+
+  link.addEventListener(
+    "click",
+    () => {
+
+      $("#desktopNav").classList.remove("open");
+
+      $("#menuButton").setAttribute(
+        "aria-expanded",
+        "false"
+      );
+
+      $("#menuButton").textContent = "☰";
+
+    }
+  );
+
+});
+
+
+/* =========================================================
+   GLOBAL BUTTON EVENTS
+========================================================= */
+
+document.addEventListener(
+  "click",
+  async event => {
+
+    const closeButton =
+      event.target.closest("[data-close]");
+
+
+    if (closeButton) {
+
+      closeDialog(
+        document.getElementById(
+          closeButton.dataset.close
+        )
+      );
+
     }
 
-    bind(
-        "cartButton",
-        "click",
-        openCart
-    );
-}
+
+    const detailButton =
+      event.target.closest("[data-detail]");
+
+
+    if (detailButton) {
+
+      showDetails(
+        detailButton.dataset.detail
+      );
+
+    }
+
+
+    const contactButton =
+      event.target.closest("[data-contact]");
+
+
+    if (contactButton) {
+
+      contactSeller(
+        contactButton.dataset.contact
+      );
+
+    }
+
+
+    const editButton =
+      event.target.closest("[data-edit]");
+
+
+    if (editButton) {
+
+      const item = state.listings.find(
+        listing =>
+          listing.id === editButton.dataset.edit
+      );
+
+
+      if (
+        item &&
+        item.ownerId === state.user?.uid
+      ) {
+
+        openListingForm(item);
+
+      }
+
+    }
+
+
+    const deleteButton =
+      event.target.closest("[data-delete]");
+
+
+    if (deleteButton) {
+
+      deleteListing(
+        deleteButton.dataset.delete
+      );
+
+    }
+
+
+    const saveButton =
+      event.target.closest("[data-save]");
+
+
+    if (saveButton) {
+
+      await saveProduct(
+        saveButton.dataset.save
+      );
+
+    }
+
+
+    const removeSavedButton =
+      event.target.closest("[data-remove-saved]");
+
+
+    if (removeSavedButton) {
+
+      await removeSavedProduct(
+        removeSavedButton.dataset.removeSaved
+      );
+
+    }
+
+
+    const approveButton =
+      event.target.closest("[data-approve-seller]");
+
+
+    if (approveButton) {
+
+      await approveSeller(
+        approveButton.dataset.approveSeller
+      );
+
+    }
+
+
+    const rejectButton =
+      event.target.closest("[data-reject-seller]");
+
+
+    if (rejectButton) {
+
+      await rejectSeller(
+        rejectButton.dataset.rejectSeller
+      );
+
+    }
+
+
+    const moderateButton =
+      event.target.closest("[data-moderate-listing]");
+
+
+    if (moderateButton) {
+
+      await suspendListing(
+        moderateButton.dataset.moderateListing
+      );
+
+    }
+
+  }
+);
 
 
 /* =========================================================
-   9. APPLICATION INITIALIZATION
+   DIALOG BACKDROP
 ========================================================= */
 
-function init() {
-    console.info(
-        "POULTRYLINK: initializing marketplace"
-    );
+$$("dialog").forEach(dialog => {
 
-    initModal();
+  dialog.addEventListener(
+    "click",
+    event => {
 
-    initAuth();
+      if (event.target === dialog) {
 
-    initSearchAndFilters();
+        closeDialog(dialog);
 
-    initProductActions();
+      }
 
-    initMobileNav();
+    }
+  );
 
-    initHeaderAndFooter();
-
-    updateCategories();
-
-    loadProducts();
-}
+});
 
 
 /* =========================================================
-   10. START APPLICATION
+   AUTHENTICATION STATE
 ========================================================= */
 
-if (document.readyState === "loading") {
-    document.addEventListener(
-        "DOMContentLoaded",
-        init,
-        { once: true }
-    );
-} else {
-    init();
-}
+onAuthStateChanged(
+  auth,
+  async user => {
+
+    state.user = user;
+
+
+    if (!user) {
+
+      state.profile = null;
+      state.seller = null;
+      state.subscription = null;
+      state.isAdmin = false;
+
+      setAuthUI(null);
+
+      closeDashboard();
+
+      return;
+
+    }
+
+
+    await loadProfile(user);
+
+    setAuthUI(user);
+
+    renderListings();
+
+
+    if (state.dashboardOpen) {
+
+      await loadDashboardData();
+
+    }
+
+  }
+);
+
+
+/* =========================================================
+   APPLICATION STARTUP
+========================================================= */
+
+setText(
+  "#year",
+  new Date().getFullYear()
+);
+
+
+updateAuthModeUI();
+
+renderListings();
+
+loadListings();
