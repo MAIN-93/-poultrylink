@@ -37,26 +37,6 @@ import {
 
 
 /* =========================================================
-   FIREBASE CONFIGURATION
-========================================================= */
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDUBwgGhDHj-v6kBE5Dn3O_FxF8EfPPfy4",
-  authDomain: "poultrylink-2459a.firebaseapp.com",
-  projectId: "poultrylink-2459a",
-  storageBucket: "poultrylink-2459a.firebasestorage.app",
-  messagingSenderId: "332920290687",
-  appId: "1:332920290687:web:3e71c648817e1c07ba6e4a"
-};
-
-const app = initializeApp(firebaseConfig);
-
-const auth = getAuth(app);
-
-const db = getFirestore(app);
-
-
-/* =========================================================
    APPLICATION CONFIGURATION
 ========================================================= */
 
@@ -66,8 +46,7 @@ const CONFIG = {
 
   /*
     This endpoint must be implemented on your secure backend.
-    It must initialize Paystack transactions using the secret key
-    stored on the server, never in this JavaScript file.
+    The Paystack secret key must NEVER be placed in this file.
   */
 
   paymentEndpoint: "/api/payments/initialize",
@@ -87,6 +66,28 @@ const $ = (selector, root = document) =>
 
 const $$ = (selector, root = document) =>
   [...root.querySelectorAll(selector)];
+
+
+/*
+  Safe event listener.
+  Prevents the entire application from crashing if an optional
+  HTML element is missing.
+*/
+
+function on(selector, event, handler) {
+  const element = $(selector);
+
+  if (element) {
+    element.addEventListener(event, handler);
+  }
+}
+
+
+function onAll(selector, event, handler) {
+  $$(selector).forEach(element => {
+    element.addEventListener(event, handler);
+  });
+}
 
 
 const state = {
@@ -264,11 +265,6 @@ function setHidden(selector, hidden) {
 }
 
 
-function showMessage(selector, message) {
-  setText(selector, message);
-}
-
-
 function timestampToMillis(value) {
   if (value?.toMillis) {
     return value.toMillis();
@@ -293,9 +289,7 @@ function isSubscriptionActive(subscription) {
     return false;
   }
 
-  const expiry = timestampToMillis(
-    subscription.expiresAt
-  );
+  const expiry = timestampToMillis(subscription.expiresAt);
 
   return expiry > Date.now();
 }
@@ -424,8 +418,6 @@ function cardTemplate(item) {
 
   const category = item.category || "Equipment";
 
-  const verified = Boolean(item.sellerVerified);
-
   return `
 
     <article class="listing-card">
@@ -442,7 +434,6 @@ function cardTemplate(item) {
 
       </div>
 
-
       <div class="listing-body">
 
         <div class="listing-meta">
@@ -457,9 +448,7 @@ function cardTemplate(item) {
 
         </div>
 
-
         <h3>${escapeHTML(item.title)}</h3>
-
 
         <p class="listing-description">
           ${escapeHTML(
@@ -468,12 +457,10 @@ function cardTemplate(item) {
           )}
         </p>
 
-
         <div class="listing-price">
           ${formatNaira(item.price)}
           <small>/ ${escapeHTML(item.unit || "unit")}</small>
         </div>
-
 
         <div class="listing-details">
 
@@ -484,12 +471,9 @@ function cardTemplate(item) {
             </strong>
           </span>
 
-          <span>
-            ${verified ? "✓ Verified seller" : "Seller listing"}
-          </span>
+          <span>Seller listing</span>
 
         </div>
-
 
         <div class="seller-line">
 
@@ -505,7 +489,6 @@ function cardTemplate(item) {
           </span>
 
         </div>
-
 
         <div class="card-actions">
 
@@ -525,8 +508,15 @@ function cardTemplate(item) {
             WhatsApp ↗
           </button>
 
-        </div>
+          <button
+            class="btn btn-outline"
+            type="button"
+            data-save="${escapeHTML(item.id)}"
+          >
+            Save
+          </button>
 
+        </div>
 
         ${owned ? `
 
@@ -579,7 +569,6 @@ function renderListings() {
     }`
   );
 
-
   setHidden(
     "#emptyState",
     results.length > 0
@@ -589,7 +578,6 @@ function renderListings() {
     "hidden",
     results.length === 0
   );
-
 
   $$("#categoryChips .chip").forEach(chip => {
 
@@ -610,10 +598,10 @@ function resetFilters() {
   state.location = "";
   state.sort = "newest";
 
-  $("#searchInput").value = "";
-  $("#categoryFilter").value = "";
-  $("#locationFilter").value = "";
-  $("#sortSelect").value = "newest";
+  if ($("#searchInput")) $("#searchInput").value = "";
+  if ($("#categoryFilter")) $("#categoryFilter").value = "";
+  if ($("#locationFilter")) $("#locationFilter").value = "";
+  if ($("#sortSelect")) $("#sortSelect").value = "newest";
 
   renderListings();
 }
@@ -701,7 +689,6 @@ async function loadProfile(user) {
     return;
   }
 
-
   try {
 
     const [
@@ -721,7 +708,6 @@ async function loadProfile(user) {
 
     ]);
 
-
     state.profile = userSnapshot.exists()
       ? userSnapshot.data()
       : {
@@ -729,25 +715,21 @@ async function loadProfile(user) {
           email: user.email || ""
         };
 
-
     state.seller = sellerSnapshot.exists()
       ? sellerSnapshot.data()
       : null;
-
 
     state.subscription = subscriptionSnapshot.exists()
       ? subscriptionSnapshot.data()
       : null;
 
-
     /*
-      Administrator access is determined by a trusted
-      Firebase custom claim, not a user-editable field.
+      Admin access comes from a trusted Firebase custom claim.
+      Never use a user-editable Firestore role field.
     */
 
     state.isAdmin =
       tokenResult.claims.admin === true;
-
 
   } catch (error) {
 
@@ -817,7 +799,7 @@ function openAuth(mode = "signin") {
 
   state.authMode = mode;
 
-  $("#authForm").reset();
+  $("#authForm")?.reset();
 
   setText("#authMessage", "");
 
@@ -847,17 +829,14 @@ function updateAuthModeUI() {
       : "Sign in to continue."
   );
 
-
   setHidden(
     "#authNameWrap",
     !creating
   );
 
-
   if ($("#authName")) {
     $("#authName").required = creating;
   }
-
 
   setText(
     "#authModeButton",
@@ -866,14 +845,12 @@ function updateAuthModeUI() {
       : "Create account"
   );
 
-
   setText(
     "#authSubmitButton",
     creating
       ? "Create account"
       : "Sign in"
   );
-
 
   if ($("#authPassword")) {
 
@@ -933,21 +910,25 @@ async function handleAuthSubmit(event) {
 
   event.preventDefault();
 
-  const email = $("#authEmail").value.trim();
+  const email = $("#authEmail")?.value.trim() || "";
 
-  const password = $("#authPassword").value;
+  const password = $("#authPassword")?.value || "";
 
-  const name = $("#authName").value.trim();
-
+  const name = $("#authName")?.value.trim() || "";
 
   setText("#authMessage", "Please wait…");
 
-  $("#authSubmitButton").disabled = true;
+  const submitButton = $("#authSubmitButton");
 
+  if (submitButton) submitButton.disabled = true;
 
   try {
 
     if (state.authMode === "signup") {
+
+      if (name.length < 2) {
+        throw new Error("Enter your full name.");
+      }
 
       const credential =
         await createUserWithEmailAndPassword(
@@ -956,17 +937,13 @@ async function handleAuthSubmit(event) {
           password
         );
 
-
       await updateProfile(credential.user, {
         displayName: name
       });
 
-
       /*
-        New accounts are created as buyers.
-
-        Seller privileges are granted only after the
-        separate verification and subscription process.
+        Every new account starts as a buyer.
+        Seller permissions are granted separately.
       */
 
       await setDoc(
@@ -980,18 +957,15 @@ async function handleAuthSubmit(event) {
         }
       );
 
-
       state.profile = {
         displayName: name,
         email,
         accountType: "buyer"
       };
 
-
       showToast(
         "Your PoultryLink account has been created."
       );
-
 
     } else {
 
@@ -1005,7 +979,6 @@ async function handleAuthSubmit(event) {
 
     }
 
-
     closeDialog($("#authDialog"));
 
   } catch (error) {
@@ -1014,12 +987,12 @@ async function handleAuthSubmit(event) {
 
     setText(
       "#authMessage",
-      friendlyAuthError(error)
+      error.message || friendlyAuthError(error)
     );
 
   } finally {
 
-    $("#authSubmitButton").disabled = false;
+    if (submitButton) submitButton.disabled = false;
 
   }
 
@@ -1041,7 +1014,6 @@ function sellerEligibility() {
 
   }
 
-
   if (!state.seller) {
 
     return {
@@ -1050,7 +1022,6 @@ function sellerEligibility() {
     };
 
   }
-
 
   if (state.seller.verificationStatus !== "approved") {
 
@@ -1061,7 +1032,6 @@ function sellerEligibility() {
 
   }
 
-
   if (!isSubscriptionActive(state.subscription)) {
 
     return {
@@ -1070,7 +1040,6 @@ function sellerEligibility() {
     };
 
   }
-
 
   return {
     allowed: true,
@@ -1097,7 +1066,6 @@ function openListingForm(item = null) {
     return;
 
   }
-
 
   const eligibility = sellerEligibility();
 
@@ -1127,16 +1095,16 @@ function openListingForm(item = null) {
 
   }
 
-
   state.editingId = item?.id || null;
 
-  $("#listingForm").reset();
+  $("#listingForm")?.reset();
 
   setText("#formMessage", "");
 
-  $("#editingListingId").value =
-    state.editingId || "";
-
+  if ($("#editingListingId")) {
+    $("#editingListingId").value =
+      state.editingId || "";
+  }
 
   setText(
     "#listingTitle",
@@ -1145,7 +1113,6 @@ function openListingForm(item = null) {
       : "List a product"
   );
 
-
   setText(
     "#saveListingButton",
     state.editingId
@@ -1153,20 +1120,21 @@ function openListingForm(item = null) {
       : "Publish listing"
   );
 
+  if ($("#listingSeller")) {
+    $("#listingSeller").value =
+      item?.seller ||
+      state.seller?.businessName ||
+      state.profile?.displayName ||
+      "";
+  }
 
-  $("#listingSeller").value =
-    item?.seller ||
-    state.seller?.businessName ||
-    state.profile?.displayName ||
-    "";
-
-
-  $("#listingPhone").value =
-    item?.phone ||
-    state.seller?.phone ||
-    state.profile?.phone ||
-    "";
-
+  if ($("#listingPhone")) {
+    $("#listingPhone").value =
+      item?.phone ||
+      state.seller?.phone ||
+      state.profile?.phone ||
+      "";
+  }
 
   if (item) {
 
@@ -1196,7 +1164,6 @@ function openListingForm(item = null) {
 
   }
 
-
   openDialog("listingDialog");
 
 }
@@ -1208,12 +1175,13 @@ function openListingForm(item = null) {
 
 function getFormListing() {
 
-  const data = new FormData($("#listingForm"));
+  const form = $("#listingForm");
+
+  const data = new FormData(form);
 
   const category = String(
     data.get("category") || ""
   );
-
 
   return {
 
@@ -1281,13 +1249,11 @@ function validateListing(item) {
 
   }
 
-
   if (!Object.hasOwn(categoryInfo, item.category)) {
 
     return "Choose a valid product category.";
 
   }
-
 
   if (
     !Number.isFinite(item.price) ||
@@ -1299,7 +1265,6 @@ function validateListing(item) {
 
   }
 
-
   if (
     !item.quantity ||
     item.quantity.length > 80
@@ -1309,13 +1274,11 @@ function validateListing(item) {
 
   }
 
-
   if (!item.state || !item.town) {
 
     return "Enter your state and town.";
 
   }
-
 
   if (
     item.seller.length < 2 ||
@@ -1326,7 +1289,6 @@ function validateListing(item) {
 
   }
 
-
   if (
     item.phone.length < 10 ||
     item.phone.length > 15
@@ -1336,13 +1298,11 @@ function validateListing(item) {
 
   }
 
-
   if (item.description.length > 1200) {
 
     return "Description must not exceed 1,200 characters.";
 
   }
-
 
   return "";
 
@@ -1357,7 +1317,6 @@ async function saveListing(event) {
 
   event.preventDefault();
 
-
   if (!state.user) {
 
     closeDialog($("#listingDialog"));
@@ -1367,7 +1326,6 @@ async function saveListing(event) {
     return;
 
   }
-
 
   const eligibility = sellerEligibility();
 
@@ -1382,7 +1340,6 @@ async function saveListing(event) {
 
   }
 
-
   const item = getFormListing();
 
   const validation = validateListing(item);
@@ -1395,14 +1352,14 @@ async function saveListing(event) {
 
   }
 
-
   setText(
     "#formMessage",
     "Saving listing…"
   );
 
-  $("#saveListingButton").disabled = true;
+  const saveButton = $("#saveListingButton");
 
+  if (saveButton) saveButton.disabled = true;
 
   try {
 
@@ -1411,7 +1368,6 @@ async function saveListing(event) {
       const current = state.listings.find(
         listing => listing.id === state.editingId
       );
-
 
       if (
         !current ||
@@ -1424,7 +1380,6 @@ async function saveListing(event) {
 
       }
 
-
       await updateDoc(
         doc(db, "products", state.editingId),
         {
@@ -1433,9 +1388,7 @@ async function saveListing(event) {
         }
       );
 
-
       showToast("Listing updated successfully.");
-
 
     } else {
 
@@ -1445,7 +1398,7 @@ async function saveListing(event) {
 
           ...item,
 
-          ownerId: state.user.uid,      
+          ownerId: state.user.uid,
 
           createdAt: serverTimestamp(),
 
@@ -1454,11 +1407,9 @@ async function saveListing(event) {
         }
       );
 
-
       showToast("Your product has been published.");
 
     }
-
 
     closeDialog($("#listingDialog"));
 
@@ -1468,12 +1419,10 @@ async function saveListing(event) {
 
     await loadDashboardData();
 
-
-    $("#marketplace").scrollIntoView({
+    $("#marketplace")?.scrollIntoView({
       behavior: "smooth",
       block: "start"
     });
-
 
   } catch (error) {
 
@@ -1488,7 +1437,7 @@ async function saveListing(event) {
 
   } finally {
 
-    $("#saveListingButton").disabled = false;
+    if (saveButton) saveButton.disabled = false;
 
   }
 
@@ -1505,7 +1454,6 @@ async function deleteListing(id) {
     listing => listing.id === id
   );
 
-
   if (
     !item ||
     !state.user ||
@@ -1520,7 +1468,6 @@ async function deleteListing(id) {
 
   }
 
-
   if (!window.confirm(
     `Delete "${item.title}"? This cannot be undone.`
   )) {
@@ -1529,25 +1476,21 @@ async function deleteListing(id) {
 
   }
 
-
   try {
 
     await deleteDoc(
       doc(db, "products", id)
     );
 
-
     state.listings = state.listings.filter(
       listing => listing.id !== id
     );
-
 
     renderListings();
 
     showToast("Listing deleted.");
 
     await loadDashboardData();
-
 
   } catch (error) {
 
@@ -1574,9 +1517,7 @@ function contactSeller(id) {
 
   if (!item) return;
 
-
   const phone = normalisePhone(item.phone);
-
 
   if (
     phone.length < 10 ||
@@ -1591,17 +1532,14 @@ function contactSeller(id) {
 
   }
 
-
   const message =
     `Hello ${item.seller || "seller"}, ` +
     `I found your "${item.title}" listing on PoultryLink. ` +
     `Is it still available? Please confirm the price, quantity ` +
     `and delivery or pickup details.`;
 
-
   const url =
     `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-
 
   window.open(
     url,
@@ -1624,18 +1562,15 @@ function showDetails(id) {
 
   if (!item) return;
 
-
   const location = [
     item.town,
     item.state
   ].filter(Boolean).join(", ");
 
-
   const owned = Boolean(
     state.user &&
     item.ownerId === state.user.uid
   );
-
 
   setHTML(
     "#detailContent",
@@ -1667,7 +1602,6 @@ function showDetails(id) {
 
       </div>
 
-
       <div class="detail-hero">
 
         <div class="listing-art ${categoryClass(item.category)}">
@@ -1677,7 +1611,6 @@ function showDetails(id) {
           </span>
 
         </div>
-
 
         <div>
 
@@ -1698,14 +1631,12 @@ function showDetails(id) {
 
       </div>
 
-
       <p class="detail-copy">
         ${escapeHTML(
           item.description ||
           "Contact the seller to confirm product details."
         )}
       </p>
-
 
       <div class="detail-facts">
 
@@ -1731,7 +1662,6 @@ function showDetails(id) {
 
       </div>
 
-
       <p class="detail-copy">
 
         <strong>Safety reminder:</strong>
@@ -1740,7 +1670,6 @@ function showDetails(id) {
         payment arrangements directly with the seller.
 
       </p>
-
 
       <button
         type="button"
@@ -1752,7 +1681,6 @@ function showDetails(id) {
 
     `
   );
-
 
   openDialog("detailDialog");
 
@@ -1773,7 +1701,6 @@ function openVerificationForm() {
 
   }
 
-
   if (state.seller?.verificationStatus === "approved") {
 
     showToast(
@@ -1784,11 +1711,9 @@ function openVerificationForm() {
 
   }
 
-
-  $("#verificationForm").reset();
+  $("#verificationForm")?.reset();
 
   setText("#verificationMessage", "");
-
 
   if (state.seller) {
 
@@ -1829,7 +1754,6 @@ function openVerificationForm() {
 
   }
 
-
   openDialog("verificationDialog");
 
 }
@@ -1839,7 +1763,6 @@ async function submitVerification(event) {
 
   event.preventDefault();
 
-
   if (!state.user) {
 
     openAuth("signin");
@@ -1848,11 +1771,9 @@ async function submitVerification(event) {
 
   }
 
-
   const data = new FormData(
     $("#verificationForm")
   );
-
 
   const application = {
 
@@ -1894,7 +1815,6 @@ async function submitVerification(event) {
 
   };
 
-
   if (
     application.businessName.length < 2 ||
     application.fullName.length < 2 ||
@@ -1914,14 +1834,14 @@ async function submitVerification(event) {
 
   }
 
+  const submitButton = $("#submitVerificationButton");
 
-  $("#submitVerificationButton").disabled = true;
+  if (submitButton) submitButton.disabled = true;
 
   setText(
     "#verificationMessage",
     "Submitting application…"
   );
-
 
   try {
 
@@ -1931,11 +1851,9 @@ async function submitVerification(event) {
       state.user.uid
     );
 
-
     const existingApplication = await getDoc(
       applicationRef
     );
-
 
     if (
       existingApplication.exists() &&
@@ -1948,6 +1866,13 @@ async function submitVerification(event) {
 
     }
 
+    /*
+      The applicant can submit an application.
+      They cannot approve themselves.
+
+      Firestore Rules must restrict this document to its owner
+      and prevent the owner from setting status to approved.
+    */
 
     await setDoc(
       applicationRef,
@@ -1967,6 +1892,11 @@ async function submitVerification(event) {
       }
     );
 
+    /*
+      The seller profile is created as pending.
+      Firestore Rules must prevent the applicant from changing
+      verificationStatus to approved.
+    */
 
     await setDoc(
       sellerRef(),
@@ -2002,18 +1932,15 @@ async function submitVerification(event) {
       }
     );
 
-
     await loadProfile(state.user);
 
     await loadDashboardData();
-
 
     closeDialog($("#verificationDialog"));
 
     showToast(
       "Your seller verification application has been submitted."
     );
-
 
   } catch (error) {
 
@@ -2030,7 +1957,7 @@ async function submitVerification(event) {
 
   } finally {
 
-    $("#submitVerificationButton").disabled = false;
+    if (submitButton) submitButton.disabled = false;
 
   }
 
@@ -2047,7 +1974,6 @@ function renderSubscriptionStatus() {
 
   if (!container) return;
 
-
   if (!state.seller) {
 
     container.textContent =
@@ -2057,7 +1983,6 @@ function renderSubscriptionStatus() {
 
   }
 
-
   if (state.seller.verificationStatus !== "approved") {
 
     container.textContent =
@@ -2066,7 +1991,6 @@ function renderSubscriptionStatus() {
     return;
 
   }
-
 
   if (isSubscriptionActive(state.subscription)) {
 
@@ -2112,7 +2036,6 @@ async function startSubscription(plan) {
 
   }
 
-
   if (!state.seller) {
 
     showToast(
@@ -2125,7 +2048,6 @@ async function startSubscription(plan) {
 
   }
 
-
   if (state.seller.verificationStatus !== "approved") {
 
     showToast(
@@ -2136,7 +2058,6 @@ async function startSubscription(plan) {
 
   }
 
-
   if (!["monthly", "yearly"].includes(plan)) {
 
     showToast("Invalid subscription plan.");
@@ -2145,17 +2066,10 @@ async function startSubscription(plan) {
 
   }
 
-
-  const amount = plan === "monthly"
-    ? CONFIG.monthlyPrice
-    : CONFIG.yearlyPrice;
-
-
   setText(
     "#subscriptionMessage",
     "Connecting to secure payment service…"
   );
-
 
   const buttons = $$("[data-subscription-plan]");
 
@@ -2163,11 +2077,9 @@ async function startSubscription(plan) {
     button.disabled = true;
   });
 
-
   try {
 
     const token = await state.user.getIdToken();
-
 
     const response = await fetch(
       CONFIG.paymentEndpoint,
@@ -2183,14 +2095,17 @@ async function startSubscription(plan) {
 
         },
 
+        /*
+          The backend must determine the amount from the plan.
+          Never accept a payment amount supplied by the browser.
+        */
+
         body: JSON.stringify({
           plan
-
         })
 
       }
     );
-
 
     if (!response.ok) {
 
@@ -2200,9 +2115,7 @@ async function startSubscription(plan) {
 
     }
 
-
     const result = await response.json();
-
 
     if (!result.authorization_url) {
 
@@ -2212,16 +2125,14 @@ async function startSubscription(plan) {
 
     }
 
-
     /*
-      The backend must verify the payment with Paystack
-      and activate the subscription only after verification.
+      Subscription activation must happen on the backend
+      only after Paystack payment verification.
     */
 
     window.location.assign(
       result.authorization_url
     );
-
 
   } catch (error) {
 
@@ -2261,19 +2172,15 @@ async function openDashboard() {
 
   }
 
-
   state.dashboardOpen = true;
-
 
   setHidden("#dashboardSection", false);
 
   setHidden("#adminSection", !state.isAdmin);
 
-
   await loadDashboardData();
 
-
-  $("#dashboardSection").scrollIntoView({
+  $("#dashboardSection")?.scrollIntoView({
     behavior: "smooth",
     block: "start"
   });
@@ -2296,7 +2203,6 @@ async function loadDashboardData() {
 
   if (!state.user) return;
 
-
   setText(
     "#dashboardUserName",
     state.profile?.displayName ||
@@ -2304,12 +2210,10 @@ async function loadDashboardData() {
     "PoultryLink user"
   );
 
-
   setText(
     "#dashboardUserEmail",
     state.user.email || ""
   );
-
 
   setText(
     "#dashboardRoleBadge",
@@ -2320,13 +2224,11 @@ async function loadDashboardData() {
         : "Buyer account"
   );
 
-
   renderProfileInformation();
 
   renderVerificationStatus();
 
   renderSubscriptionStatus();
-
 
   await Promise.all([
 
@@ -2339,7 +2241,6 @@ async function loadDashboardData() {
     loadRecentActivities()
 
   ]);
-
 
   if (state.isAdmin) {
 
@@ -2397,20 +2298,16 @@ function openProfileEditor() {
 
   if (!state.user) return;
 
-
   $("#profileName").value =
     state.profile?.displayName ||
     state.user.displayName ||
     "";
 
-
   $("#profilePhone").value =
     state.profile?.phone || "";
 
-
   $("#profileLocation").value =
     state.profile?.location || "";
-
 
   setText("#profileMessage", "");
 
@@ -2423,9 +2320,7 @@ async function saveProfile(event) {
 
   event.preventDefault();
 
-
   if (!state.user) return;
-
 
   const displayName =
     $("#profileName").value.trim();
@@ -2435,7 +2330,6 @@ async function saveProfile(event) {
 
   const location =
     $("#profileLocation").value.trim();
-
 
   if (displayName.length < 2) {
 
@@ -2448,14 +2342,14 @@ async function saveProfile(event) {
 
   }
 
+  const saveButton = $("#saveProfileButton");
 
-  $("#saveProfileButton").disabled = true;
+  if (saveButton) saveButton.disabled = true;
 
   setText(
     "#profileMessage",
     "Saving profile…"
   );
-
 
   try {
 
@@ -2465,7 +2359,6 @@ async function saveProfile(event) {
         displayName
       }
     );
-
 
     await setDoc(
       userRef(),
@@ -2485,10 +2378,14 @@ async function saveProfile(event) {
       }
     );
 
+    /*
+      Update only ordinary seller contact/profile fields.
+      Never allow this operation to change verification status.
+    */
 
     if (state.seller) {
 
-      await setDoc(
+      await updateDoc(
         sellerRef(),
         {
 
@@ -2498,14 +2395,10 @@ async function saveProfile(event) {
 
           updatedAt: serverTimestamp()
 
-        },
-        {
-          merge: true
         }
       );
 
     }
-
 
     await loadProfile(state.user);
 
@@ -2513,11 +2406,9 @@ async function saveProfile(event) {
 
     await loadDashboardData();
 
-
     closeDialog($("#profileDialog"));
 
     showToast("Profile updated successfully.");
-
 
   } catch (error) {
 
@@ -2530,7 +2421,7 @@ async function saveProfile(event) {
 
   } finally {
 
-    $("#saveProfileButton").disabled = false;
+    if (saveButton) saveButton.disabled = false;
 
   }
 
@@ -2547,7 +2438,6 @@ function renderVerificationStatus() {
 
   if (!container) return;
 
-
   if (!state.seller) {
 
     container.innerHTML = `
@@ -2558,10 +2448,8 @@ function renderVerificationStatus() {
 
   }
 
-
   const status =
     state.seller.verificationStatus || "not submitted";
-
 
   const messages = {
 
@@ -2575,7 +2463,6 @@ function renderVerificationStatus() {
       "Your application was not approved. Review the administrator's feedback."
 
   };
-
 
   container.innerHTML = `
 
@@ -2598,7 +2485,6 @@ function renderVerificationStatus() {
 
   `;
 
-
   setText(
     "#verificationButton",
     status === "approved"
@@ -2619,7 +2505,6 @@ async function loadMyListings() {
 
   if (!state.user) return;
 
-
   try {
 
     const listingsQuery = query(
@@ -2627,15 +2512,12 @@ async function loadMyListings() {
       where("ownerId", "==", state.user.uid)
     );
 
-
     const snapshot = await getDocs(listingsQuery);
-
 
     const listings = snapshot.docs.map(snap => ({
       ...snap.data(),
       id: snap.id
     }));
-
 
     setHTML(
       "#myListingsContent",
@@ -2666,7 +2548,6 @@ async function loadMyListings() {
 
     );
 
-
   } catch (error) {
 
     showError(error, "Could not load your listings.");
@@ -2689,7 +2570,6 @@ async function loadSavedProducts() {
 
   if (!state.user) return;
 
-
   try {
 
     const savedQuery = query(
@@ -2697,15 +2577,12 @@ async function loadSavedProducts() {
       limit(20)
     );
 
-
     const snapshot = await getDocs(savedQuery);
-
 
     const saved = snapshot.docs.map(snap => ({
       ...snap.data(),
       id: snap.id
     }));
-
 
     setHTML(
       "#savedProductsContent",
@@ -2740,7 +2617,6 @@ async function loadSavedProducts() {
 
     );
 
-
   } catch (error) {
 
     showError(error, "Could not load saved products.");
@@ -2769,13 +2645,11 @@ async function saveProduct(id) {
 
   }
 
-
   const item = state.listings.find(
     listing => listing.id === id
   );
 
   if (!item) return;
-
 
   try {
 
@@ -2806,11 +2680,9 @@ async function saveProduct(id) {
 
     );
 
-
     showToast("Product saved.");
 
     await loadSavedProducts();
-
 
   } catch (error) {
 
@@ -2833,7 +2705,6 @@ async function removeSavedProduct(id) {
 
   if (!state.user) return;
 
-
   try {
 
     await deleteDoc(
@@ -2846,11 +2717,9 @@ async function removeSavedProduct(id) {
       )
     );
 
-
     await loadSavedProducts();
 
     showToast("Saved product removed.");
-
 
   } catch (error) {
 
@@ -2869,7 +2738,6 @@ async function loadMyOrders() {
 
   if (!state.user) return;
 
-
   try {
 
     const ordersQuery = query(
@@ -2878,15 +2746,12 @@ async function loadMyOrders() {
       limit(20)
     );
 
-
     const snapshot = await getDocs(ordersQuery);
-
 
     const orders = snapshot.docs.map(snap => ({
       ...snap.data(),
       id: snap.id
     }));
-
 
     setHTML(
       "#myOrdersContent",
@@ -2917,7 +2782,6 @@ async function loadMyOrders() {
 
     );
 
-
   } catch (error) {
 
     showError(error, "Could not load orders.");
@@ -2940,7 +2804,6 @@ async function loadRecentActivities() {
 
   if (!state.user) return;
 
-
   try {
 
     const activityQuery = query(
@@ -2949,15 +2812,12 @@ async function loadRecentActivities() {
       limit(10)
     );
 
-
     const snapshot = await getDocs(activityQuery);
-
 
     const activities = snapshot.docs.map(snap => ({
       ...snap.data(),
       id: snap.id
     }));
-
 
     setHTML(
       "#recentActivitiesContent",
@@ -2984,7 +2844,6 @@ async function loadRecentActivities() {
 
     );
 
-
   } catch (error) {
 
     showError(error, "Could not load recent activities.");
@@ -3006,7 +2865,6 @@ async function loadRecentActivities() {
 function openAccountSettings() {
 
   if (!state.user) return;
-
 
   setHTML(
     "#accountSettingsContent",
@@ -3033,7 +2891,6 @@ function openAccountSettings() {
     `
   );
 
-
   openDialog("settingsDialog");
 
 }
@@ -3046,7 +2903,6 @@ function openAccountSettings() {
 async function loadAdminDashboard() {
 
   if (!state.user || !state.isAdmin) return;
-
 
   try {
 
@@ -3082,7 +2938,6 @@ async function loadAdminDashboard() {
 
     ]);
 
-
     setText(
       "#adminTotalUsers",
       usersSnapshot.size
@@ -3103,7 +2958,6 @@ async function loadAdminDashboard() {
       listingsSnapshot.size
     );
 
-
     renderAdminApplications(applicationsSnapshot);
 
     renderAdminUsers(usersSnapshot);
@@ -3111,7 +2965,6 @@ async function loadAdminDashboard() {
     renderAdminSubscriptions(subscriptionsSnapshot);
 
     renderAdminListings(listingsSnapshot);
-
 
   } catch (error) {
 
@@ -3139,7 +2992,6 @@ function renderAdminApplications(snapshot) {
 
   if (!container) return;
 
-
   if (snapshot.empty) {
 
     container.innerHTML =
@@ -3148,7 +3000,6 @@ function renderAdminApplications(snapshot) {
     return;
 
   }
-
 
   container.innerHTML = snapshot.docs.map(snap => {
 
@@ -3217,7 +3068,6 @@ async function approveSeller(uid) {
 
   }
 
-
   if (!window.confirm(
     "Approve this seller verification application?"
   )) {
@@ -3226,13 +3076,11 @@ async function approveSeller(uid) {
 
   }
 
-
   try {
 
     const applicationSnapshot = await getDoc(
       doc(db, "sellerApplications", uid)
     );
-
 
     if (!applicationSnapshot.exists()) {
 
@@ -3242,9 +3090,7 @@ async function approveSeller(uid) {
 
     }
 
-
     const application = applicationSnapshot.data();
-
 
     if (application.status !== "pending") {
 
@@ -3254,6 +3100,10 @@ async function approveSeller(uid) {
 
     }
 
+    /*
+      These writes are permitted only if Firestore Rules
+      require the trusted admin custom claim.
+    */
 
     await updateDoc(
       doc(db, "sellerApplications", uid),
@@ -3267,7 +3117,6 @@ async function approveSeller(uid) {
 
       }
     );
-
 
     await setDoc(
       doc(db, "sellers", uid),
@@ -3285,11 +3134,9 @@ async function approveSeller(uid) {
       }
     );
 
-
     showToast("Seller approved.");
 
     await loadAdminDashboard();
-
 
   } catch (error) {
 
@@ -3318,14 +3165,11 @@ async function rejectSeller(uid) {
 
   }
 
-
   const reason = window.prompt(
     "Enter the reason for rejecting this application:"
   );
 
-
   if (!reason || !reason.trim()) return;
-
 
   try {
 
@@ -3344,7 +3188,6 @@ async function rejectSeller(uid) {
       }
     );
 
-
     await setDoc(
       doc(db, "sellers", uid),
       {
@@ -3361,11 +3204,9 @@ async function rejectSeller(uid) {
       }
     );
 
-
     showToast("Seller application rejected.");
 
     await loadAdminDashboard();
-
 
   } catch (error) {
 
@@ -3390,7 +3231,6 @@ function renderAdminUsers(snapshot) {
 
   if (!container) return;
 
-
   if (snapshot.empty) {
 
     container.innerHTML =
@@ -3399,7 +3239,6 @@ function renderAdminUsers(snapshot) {
     return;
 
   }
-
 
   container.innerHTML = snapshot.docs.map(snap => {
 
@@ -3441,7 +3280,6 @@ function renderAdminSubscriptions(snapshot) {
 
   if (!container) return;
 
-
   if (snapshot.empty) {
 
     container.innerHTML =
@@ -3450,7 +3288,6 @@ function renderAdminSubscriptions(snapshot) {
     return;
 
   }
-
 
   container.innerHTML = snapshot.docs.map(snap => {
 
@@ -3491,7 +3328,6 @@ function renderAdminListings(snapshot) {
 
   if (!container) return;
 
-
   if (snapshot.empty) {
 
     container.innerHTML =
@@ -3500,7 +3336,6 @@ function renderAdminListings(snapshot) {
     return;
 
   }
-
 
   container.innerHTML = snapshot.docs.map(snap => {
 
@@ -3553,11 +3388,9 @@ async function suspendListing(id) {
 
   }
 
-
   if (!window.confirm(
     "Suspend this marketplace listing?"
   )) return;
-
 
   try {
 
@@ -3574,13 +3407,11 @@ async function suspendListing(id) {
       }
     );
 
-
     showToast("Listing suspended.");
 
     await loadListings();
 
     await loadAdminDashboard();
-
 
   } catch (error) {
 
@@ -3599,70 +3430,55 @@ async function suspendListing(id) {
    SEARCH EVENTS
 ========================================================= */
 
-$("#searchForm").addEventListener(
-  "submit",
-  event => {
+on("#searchForm", "submit", event => {
 
-    event.preventDefault();
+  event.preventDefault();
 
-    state.query = $("#searchInput").value;
+  state.query = $("#searchInput")?.value || "";
 
-    state.category = $("#categoryFilter").value;
+  state.category = $("#categoryFilter")?.value || "";
 
-    state.location = $("#locationFilter").value;
+  state.location = $("#locationFilter")?.value || "";
 
-    renderListings();
+  renderListings();
 
-    $("#marketplace").scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
+  $("#marketplace")?.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
 
+});
+
+
+on("#categoryChips", "click", event => {
+
+  const chip = event.target.closest("[data-category]");
+
+  if (!chip) return;
+
+  state.category = chip.dataset.category;
+
+  if ($("#categoryFilter")) {
+    $("#categoryFilter").value = state.category;
   }
-);
+
+  renderListings();
+
+});
 
 
-$("#categoryChips").addEventListener(
-  "click",
-  event => {
+on("#sortSelect", "change", event => {
 
-    const chip = event.target.closest("[data-category]");
+  state.sort = event.target.value;
 
-    if (!chip) return;
+  renderListings();
 
-    state.category = chip.dataset.category;
-
-    $("#categoryFilter").value =
-      state.category;
-
-    renderListings();
-
-  }
-);
+});
 
 
-$("#sortSelect").addEventListener(
-  "change",
-  event => {
+on("#clearFiltersButton", "click", resetFilters);
 
-    state.sort = event.target.value;
-
-    renderListings();
-
-  }
-);
-
-
-$("#clearFiltersButton").addEventListener(
-  "click",
-  resetFilters
-);
-
-
-$("#emptyClearButton").addEventListener(
-  "click",
-  resetFilters
-);
+on("#emptyClearButton", "click", resetFilters);
 
 
 /* =========================================================
@@ -3691,146 +3507,99 @@ $("#emptyClearButton").addEventListener(
    SIGN IN / ACCOUNT BUTTON
 ========================================================= */
 
-$("#signInButton").addEventListener(
-  "click",
-  async () => {
+on("#signInButton", "click", async () => {
 
-    if (state.user) {
+  if (state.user) {
 
-      await openDashboard();
+    await openDashboard();
 
-    } else {
+  } else {
 
-      openAuth("signin");
-
-    }
+    openAuth("signin");
 
   }
-);
+
+});
 
 
 /* =========================================================
    AUTH EVENTS
 ========================================================= */
 
-$("#authModeButton").addEventListener(
-  "click",
-  () => {
+on("#authModeButton", "click", () => {
 
-    state.authMode =
-      state.authMode === "signin"
-        ? "signup"
-        : "signin";
+  state.authMode =
+    state.authMode === "signin"
+      ? "signup"
+      : "signin";
 
-    setText("#authMessage", "");
+  setText("#authMessage", "");
 
-    updateAuthModeUI();
+  updateAuthModeUI();
 
-  }
-);
+});
 
 
-$("#authForm").addEventListener(
-  "submit",
-  handleAuthSubmit
-);
+on("#authForm", "submit", handleAuthSubmit);
 
 
 /* =========================================================
    FORM EVENTS
 ========================================================= */
 
-$("#listingForm").addEventListener(
-  "submit",
-  saveListing
-);
+on("#listingForm", "submit", saveListing);
 
+on("#verificationForm", "submit", submitVerification);
 
-$("#verificationForm").addEventListener(
-  "submit",
-  submitVerification
-);
-
-
-$("#profileForm").addEventListener(
-  "submit",
-  saveProfile
-);
+on("#profileForm", "submit", saveProfile);
 
 
 /* =========================================================
    DASHBOARD EVENTS
 ========================================================= */
 
-$("#dashboardCloseButton").addEventListener(
-  "click",
-  closeDashboard
-);
+on("#dashboardCloseButton", "click", closeDashboard);
+
+on("#editProfileButton", "click", openProfileEditor);
+
+on("#verificationButton", "click", openVerificationForm);
 
 
-$("#editProfileButton").addEventListener(
-  "click",
-  openProfileEditor
-);
+on("#subscriptionButton", "click", () => {
 
+  if (!state.user) {
 
-$("#verificationButton").addEventListener(
-  "click",
-  openVerificationForm
-);
+    openAuth("signin");
 
-
-$("#subscriptionButton").addEventListener(
-  "click",
-  () => {
-
-    if (!state.user) {
-
-      openAuth("signin");
-
-      return;
-
-    }
-
-    openDialog("subscriptionDialog");
+    return;
 
   }
-);
+
+  openDialog("subscriptionDialog");
+
+});
 
 
-$("#manageListingsButton").addEventListener(
-  "click",
-  () => {
+on("#manageListingsButton", "click", () => {
 
-    $("#marketplace").scrollIntoView({
-      behavior: "smooth"
-    });
+  $("#marketplace")?.scrollIntoView({
+    behavior: "smooth"
+  });
 
-  }
-);
+});
 
 
-$("#accountSettingsButton").addEventListener(
-  "click",
-  openAccountSettings
-);
+on("#accountSettingsButton", "click", openAccountSettings);
 
 
 /* =========================================================
    SUBSCRIPTION BUTTONS
 ========================================================= */
 
-$$("[data-subscription-plan]").forEach(button => {
+onAll("[data-subscription-plan]", "click", event => {
 
-  button.addEventListener(
-    "click",
-    () => {
-
-      startSubscription(
-        button.dataset.subscriptionPlan
-      );
-
-    }
+  startSubscription(
+    event.currentTarget.dataset.subscriptionPlan
   );
 
 });
@@ -3840,46 +3609,40 @@ $$("[data-subscription-plan]").forEach(button => {
    MOBILE NAVIGATION
 ========================================================= */
 
-$("#menuButton").addEventListener(
-  "click",
-  () => {
+on("#menuButton", "click", () => {
 
-    const nav = $("#desktopNav");
+  const nav = $("#desktopNav");
 
-    const isOpen =
-      nav.classList.toggle("open");
+  if (!nav) return;
 
+  const isOpen =
+    nav.classList.toggle("open");
 
-    $("#menuButton").setAttribute(
-      "aria-expanded",
-      String(isOpen)
-    );
+  $("#menuButton")?.setAttribute(
+    "aria-expanded",
+    String(isOpen)
+  );
 
-
+  if ($("#menuButton")) {
     $("#menuButton").textContent =
       isOpen ? "×" : "☰";
-
   }
-);
+
+});
 
 
-$$("#desktopNav a").forEach(link => {
+onAll("#desktopNav a", "click", () => {
 
-  link.addEventListener(
-    "click",
-    () => {
+  $("#desktopNav")?.classList.remove("open");
 
-      $("#desktopNav").classList.remove("open");
-
-      $("#menuButton").setAttribute(
-        "aria-expanded",
-        "false"
-      );
-
-      $("#menuButton").textContent = "☰";
-
-    }
+  $("#menuButton")?.setAttribute(
+    "aria-expanded",
+    "false"
   );
+
+  if ($("#menuButton")) {
+    $("#menuButton").textContent = "☰";
+  }
 
 });
 
@@ -3895,7 +3658,6 @@ document.addEventListener(
     const closeButton =
       event.target.closest("[data-close]");
 
-
     if (closeButton) {
 
       closeDialog(
@@ -3906,10 +3668,8 @@ document.addEventListener(
 
     }
 
-
     const detailButton =
       event.target.closest("[data-detail]");
-
 
     if (detailButton) {
 
@@ -3919,10 +3679,8 @@ document.addEventListener(
 
     }
 
-
     const contactButton =
       event.target.closest("[data-contact]");
-
 
     if (contactButton) {
 
@@ -3932,10 +3690,8 @@ document.addEventListener(
 
     }
 
-
     const editButton =
       event.target.closest("[data-edit]");
-
 
     if (editButton) {
 
@@ -3943,7 +3699,6 @@ document.addEventListener(
         listing =>
           listing.id === editButton.dataset.edit
       );
-
 
       if (
         item &&
@@ -3956,23 +3711,19 @@ document.addEventListener(
 
     }
 
-
     const deleteButton =
       event.target.closest("[data-delete]");
 
-
     if (deleteButton) {
 
-      deleteListing(
+      await deleteListing(
         deleteButton.dataset.delete
       );
 
     }
 
-
     const saveButton =
       event.target.closest("[data-save]");
-
 
     if (saveButton) {
 
@@ -3982,10 +3733,8 @@ document.addEventListener(
 
     }
 
-
     const removeSavedButton =
       event.target.closest("[data-remove-saved]");
-
 
     if (removeSavedButton) {
 
@@ -3995,10 +3744,8 @@ document.addEventListener(
 
     }
 
-
     const approveButton =
       event.target.closest("[data-approve-seller]");
-
 
     if (approveButton) {
 
@@ -4008,10 +3755,8 @@ document.addEventListener(
 
     }
 
-
     const rejectButton =
       event.target.closest("[data-reject-seller]");
-
 
     if (rejectButton) {
 
@@ -4021,10 +3766,8 @@ document.addEventListener(
 
     }
 
-
     const moderateButton =
       event.target.closest("[data-moderate-listing]");
-
 
     if (moderateButton) {
 
@@ -4070,7 +3813,6 @@ onAuthStateChanged(
 
     state.user = user;
 
-
     if (!user) {
 
       state.profile = null;
@@ -4082,17 +3824,17 @@ onAuthStateChanged(
 
       closeDashboard();
 
+      renderListings();
+
       return;
 
     }
-
 
     await loadProfile(user);
 
     setAuthUI(user);
 
     renderListings();
-
 
     if (state.dashboardOpen) {
 
@@ -4112,7 +3854,6 @@ setText(
   "#year",
   new Date().getFullYear()
 );
-
 
 updateAuthModeUI();
 
