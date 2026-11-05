@@ -9,12 +9,9 @@
    FIREBASE IMPORTS
 ========================================================= */
 
-import {
-  initializeApp
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { auth, db } from "./firebase-config.js";
 
 import {
-  getAuth,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -23,7 +20,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 
 import {
-  getFirestore,
   collection,
   addDoc,
   getDocs,
@@ -1449,9 +1445,7 @@ async function saveListing(event) {
 
           ...item,
 
-          ownerId: state.user.uid,
-
-          sellerVerified: true,
+          ownerId: state.user.uid,      
 
           createdAt: serverTimestamp(),
 
@@ -2190,12 +2184,7 @@ async function startSubscription(plan) {
         },
 
         body: JSON.stringify({
-
-          plan,
-
-          amount,
-
-          currency: CONFIG.currency
+          plan
 
         })
 
