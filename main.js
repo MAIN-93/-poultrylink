@@ -1,17 +1,9 @@
-/* =========================================================
-   POULTRYLINK — APPLICATION JAVASCRIPT
-   Firebase 11.10.0
-   Nigeria's Poultry Marketplace
-========================================================= */
-
-
-/* =========================================================
-   FIREBASE IMPORTS
-========================================================= */
-
-import { auth, db } from "./firebase-config.js";
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 
 import {
+  getAuth,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -20,6 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 
 import {
+  getFirestore,
   collection,
   addDoc,
   getDocs,
@@ -30,36 +23,51 @@ import {
   query,
   where,
   serverTimestamp,
-  setDoc,
-  orderBy,
-  limit
+  setDoc
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
 
-/* =========================================================
-   APPLICATION CONFIGURATION
-========================================================= */
+/* =========================================
+   FIREBASE CONFIGURATION
+========================================= */
 
-const CONFIG = {
-  monthlyPrice: 1000,
-  yearlyPrice: 10000,
-
-  /*
-    This endpoint must be implemented on your secure backend.
-    The Paystack secret key must NEVER be placed in this file.
-  */
-
-  paymentEndpoint: "/api/payments/initialize",
-
-  currency: "NGN",
-
-  maxListingPrice: 1000000000
+const firebaseConfig = {
+  apiKey: "AIzaSyDUBwgGhDHj-v6kBE5Dn3O_FxF8EfPPfy4",
+  authDomain: "poultrylink-2459a.firebaseapp.com",
+  projectId: "poultrylink-2459a",
+  storageBucket: "poultrylink-2459a.firebasestorage.app",
+  messagingSenderId: "332920290687",
+  appId: "1:332920290687:web:3e71c648817e1c07ba6e4a"
 };
 
 
-/* =========================================================
-   HELPERS
-========================================================= */
+/* =========================================
+   INITIALIZE FIREBASE
+========================================= */
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+
+/* =========================================
+   ADMIN SETTINGS
+========================================= */
+
+const ADMIN_EMAIL = "ajmaine93@gmail.com";
+
+function isAdmin(user = state.user) {
+  return Boolean(
+    user &&
+    user.email &&
+    user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  );
+}
+
+
+/* =========================================
+   HELPERS AND APPLICATION STATE
+========================================= */
 
 const $ = (selector, root = document) =>
   root.querySelector(selector);
@@ -68,58 +76,27 @@ const $$ = (selector, root = document) =>
   [...root.querySelectorAll(selector)];
 
 
-/*
-  Safe event listener.
-  Prevents the entire application from crashing if an optional
-  HTML element is missing.
-*/
-
-function on(selector, event, handler) {
-  const element = $(selector);
-
-  if (element) {
-    element.addEventListener(event, handler);
-  }
-}
-
-
-function onAll(selector, event, handler) {
-  $$(selector).forEach(element => {
-    element.addEventListener(event, handler);
-  });
-}
-
-
 const state = {
   query: "",
   category: "",
   location: "",
   sort: "newest",
-
   listings: [],
-
   user: null,
   profile: null,
-  seller: null,
-  subscription: null,
-
-  isAdmin: false,
-
   authMode: "signin",
-  editingId: null,
-
-  dashboardOpen: false
+  editingId: null
 };
 
 
 const grid = $("#listingGrid");
-
 const toast = $("#toast");
 
 let toastTimer;
 
 
 const categoryInfo = {
+
   Eggs: {
     emoji: "🥚",
     art: "eggs"
@@ -149,21 +126,32 @@ const categoryInfo = {
     emoji: "🧰",
     art: "equipment"
   }
+
 };
 
 
+/* =========================================
+   GENERAL HELPERS
+========================================= */
+
 function escapeHTML(value) {
-  return String(value ?? "").replace(/[&<>"']/g, char => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
+
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    char => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    })[char]
+  );
+
 }
 
 
 function formatNaira(value) {
+
   const number = Number(value);
 
   if (!Number.isFinite(number)) {
@@ -173,15 +161,20 @@ function formatNaira(value) {
   return "₦" + new Intl.NumberFormat("en-NG", {
     maximumFractionDigits: 0
   }).format(number);
+
 }
 
 
 function normalisePhone(phone) {
-  return String(phone || "").replace(/[^\d]/g, "");
+
+  return String(phone || "")
+    .replace(/[^\d]/g, "");
+
 }
 
 
 function showToast(message) {
+
   if (!toast) return;
 
   toast.textContent = message;
@@ -192,24 +185,28 @@ function showToast(message) {
 
   toastTimer = setTimeout(() => {
     toast.classList.remove("show");
-  }, 3500);
+  }, 3200);
+
 }
 
 
 function openDialog(id) {
+
   const dialog = document.getElementById(id);
 
   if (!dialog) return;
 
   if (typeof dialog.showModal === "function") {
-    if (!dialog.open) dialog.showModal();
+    dialog.showModal();
   } else {
     dialog.setAttribute("open", "");
   }
+
 }
 
 
 function closeDialog(dialog) {
+
   if (!dialog) return;
 
   if (typeof dialog.close === "function") {
@@ -217,136 +214,53 @@ function closeDialog(dialog) {
   } else {
     dialog.removeAttribute("open");
   }
+
 }
 
 
 function initials(name) {
+
   return String(name || "P")
     .trim()
     .charAt(0)
     .toUpperCase() || "P";
+
 }
 
 
 function categoryClass(category) {
-  return (categoryInfo[category] || categoryInfo.Equipment).art;
+
+  return (
+    categoryInfo[category] ||
+    categoryInfo.Equipment
+  ).art;
+
 }
 
 
 function categoryEmoji(category) {
-  return (categoryInfo[category] || categoryInfo.Equipment).emoji;
+
+  return (
+    categoryInfo[category] ||
+    categoryInfo.Equipment
+  ).emoji;
+
 }
 
 
-function setText(selector, value) {
-  const element = $(selector);
-
-  if (element) {
-    element.textContent = value ?? "";
-  }
-}
-
-
-function setHTML(selector, value) {
-  const element = $(selector);
-
-  if (element) {
-    element.innerHTML = value;
-  }
-}
-
-
-function setHidden(selector, hidden) {
-  const element = $(selector);
-
-  if (element) {
-    element.classList.toggle("hidden", hidden);
-  }
-}
-
-
-function timestampToMillis(value) {
-  if (value?.toMillis) {
-    return value.toMillis();
-  }
-
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  return 0;
-}
-
-
-function isSubscriptionActive(subscription) {
-  if (!subscription) return false;
-
-  if (subscription.status !== "active") {
-    return false;
-  }
-
-  const expiry = timestampToMillis(subscription.expiresAt);
-
-  return expiry > Date.now();
-}
-
-
-function friendlyDate(value) {
-  const millis = timestampToMillis(value);
-
-  if (!millis) return "Not available";
-
-  return new Date(millis).toLocaleDateString(
-    "en-NG",
-    {
-      day: "numeric",
-      month: "short",
-      year: "numeric"
-    }
-  );
-}
-
-
-function showError(error, fallback = "Something went wrong.") {
-  console.error(error);
-
-  return fallback;
-}
-
-
-/* =========================================================
-   FIRESTORE REFERENCES
-========================================================= */
-
-function userRef(uid = state.user?.uid) {
-  return doc(db, "users", uid);
-}
-
-
-function sellerRef(uid = state.user?.uid) {
-  return doc(db, "sellers", uid);
-}
-
-
-function subscriptionRef(uid = state.user?.uid) {
-  return doc(db, "subscriptions", uid);
-}
-
-
-/* =========================================================
-   MARKETPLACE SEARCH
-========================================================= */
+/* =========================================
+   SEARCH AND LISTINGS
+========================================= */
 
 function getVisibleListings() {
-  const search = state.query.trim().toLowerCase();
+
+  const search =
+    state.query.trim().toLowerCase();
 
   let results = state.listings.filter(item => {
 
     const searchable = [
+
       item.title,
       item.category,
       item.description,
@@ -354,55 +268,67 @@ function getVisibleListings() {
       item.town,
       item.state,
       item.quantity
+
     ].join(" ").toLowerCase();
 
+
     const matchesSearch =
-      !search || searchable.includes(search);
+      !search ||
+      searchable.includes(search);
+
 
     const matchesCategory =
       !state.category ||
       item.category === state.category;
 
+
     const matchesLocation =
       !state.location ||
       item.state === state.location;
+
 
     return (
       matchesSearch &&
       matchesCategory &&
       matchesLocation
     );
+
   });
 
 
   if (state.sort === "price-low") {
 
-    results.sort((a, b) =>
-      Number(a.price) - Number(b.price)
+    results.sort(
+      (a, b) =>
+        Number(a.price) - Number(b.price)
     );
 
   } else if (state.sort === "price-high") {
 
-    results.sort((a, b) =>
-      Number(b.price) - Number(a.price)
+    results.sort(
+      (a, b) =>
+        Number(b.price) - Number(a.price)
     );
 
   } else {
 
-    results.sort((a, b) =>
-      (b.createdMillis || 0) -
-      (a.createdMillis || 0)
+    results.sort(
+      (a, b) =>
+        (b.createdMillis || 0) -
+        (a.createdMillis || 0)
     );
 
   }
 
+
   return results;
+
 }
 
 
-/* =========================================================
-   PRODUCT CARD
-========================================================= */
+/* =========================================
+   LISTING CARD
+========================================= */
 
 function cardTemplate(item) {
 
@@ -411,28 +337,47 @@ function cardTemplate(item) {
     item.ownerId === state.user.uid
   );
 
+  const admin = isAdmin();
+
+
+  const canManage =
+    owned || admin;
+
+
   const location = [
     item.town,
     item.state
   ].filter(Boolean).join(", ");
 
-  const category = item.category || "Equipment";
+
+  const category =
+    item.category || "Equipment";
+
 
   return `
-
     <article class="listing-card">
 
       <div class="listing-art ${categoryClass(category)}">
 
         <span class="listing-tag">
-          ${owned ? "YOUR LISTING" : "SELLER LISTING"}
+          ${
+            owned
+              ? "YOUR LISTING"
+              : admin
+                ? "ADMIN VIEW"
+                : "SELLER LISTING"
+          }
         </span>
 
         <span class="art-emoji" aria-hidden="true">
-          ${escapeHTML(item.emoji || categoryEmoji(category))}
+          ${escapeHTML(
+            item.emoji ||
+            categoryEmoji(category)
+          )}
         </span>
 
       </div>
+
 
       <div class="listing-body">
 
@@ -443,52 +388,87 @@ function cardTemplate(item) {
           </span>
 
           <span>
-            ⌖ ${escapeHTML(location || "Location not set")}
+            ⌖ ${escapeHTML(
+              location ||
+              "Location not set"
+            )}
           </span>
 
         </div>
 
-        <h3>${escapeHTML(item.title)}</h3>
+
+        <h3>
+          ${escapeHTML(item.title)}
+        </h3>
+
 
         <p class="listing-description">
           ${escapeHTML(
             item.description ||
-            "Contact the seller for more details."
+            "Contact the seller for more details about this offer."
           )}
         </p>
 
+
         <div class="listing-price">
+
           ${formatNaira(item.price)}
-          <small>/ ${escapeHTML(item.unit || "unit")}</small>
+
+          <small>
+            / ${escapeHTML(
+              item.unit || "unit"
+            )}
+          </small>
+
         </div>
+
 
         <div class="listing-details">
 
           <span>
             Available:
             <strong>
-              ${escapeHTML(item.quantity || "Ask seller")}
+              ${escapeHTML(
+                item.quantity ||
+                "Ask seller"
+              )}
             </strong>
           </span>
 
-          <span>Seller listing</span>
+          <span>
+            ${
+              owned
+                ? "Your offer"
+                : "Direct seller"
+            }
+          </span>
 
         </div>
+
 
         <div class="seller-line">
 
           <span class="seller-avatar">
-            ${escapeHTML(initials(item.seller))}
+            ${escapeHTML(
+              initials(item.seller)
+            )}
           </span>
 
           <span>
+
             Listed by
+
             <strong>
-              ${escapeHTML(item.seller || "Poultry seller")}
+              ${escapeHTML(
+                item.seller ||
+                "Poultry seller"
+              )}
             </strong>
+
           </span>
 
         </div>
+
 
         <div class="card-actions">
 
@@ -500,6 +480,7 @@ function cardTemplate(item) {
             View details
           </button>
 
+
           <button
             class="btn btn-whatsapp"
             type="button"
@@ -508,17 +489,12 @@ function cardTemplate(item) {
             WhatsApp ↗
           </button>
 
-          <button
-            class="btn btn-outline"
-            type="button"
-            data-save="${escapeHTML(item.id)}"
-          >
-            Save
-          </button>
-
         </div>
 
-        ${owned ? `
+
+        ${
+          canManage
+            ? `
 
           <div class="card-actions">
 
@@ -527,8 +503,13 @@ function cardTemplate(item) {
               type="button"
               data-edit="${escapeHTML(item.id)}"
             >
-              Edit listing
+              ${
+                owned
+                  ? "Edit listing"
+                  : "Admin edit"
+              }
             </button>
+
 
             <button
               class="btn btn-outline"
@@ -540,56 +521,69 @@ function cardTemplate(item) {
 
           </div>
 
-        ` : ""}
+        `
+            : ""
+        }
 
       </div>
 
     </article>
-
   `;
+
 }
 
 
-/* =========================================================
-   RENDER MARKETPLACE
-========================================================= */
+/* =========================================
+   RENDER LISTINGS
+========================================= */
 
 function renderListings() {
 
-  if (!grid) return;
+  const results =
+    getVisibleListings();
 
-  const results = getVisibleListings();
 
-  grid.innerHTML = results.map(cardTemplate).join("");
+  grid.innerHTML =
+    results.map(cardTemplate).join("");
 
-  setText(
-    "#resultsCount",
+
+  $("#resultsCount").textContent =
     `${results.length} ${
-      results.length === 1 ? "listing" : "listings"
-    }`
-  );
+      results.length === 1
+        ? "listing"
+        : "listings"
+    }`;
 
-  setHidden(
-    "#emptyState",
+
+  $("#emptyState").classList.toggle(
+    "hidden",
     results.length > 0
   );
+
 
   grid.classList.toggle(
     "hidden",
     results.length === 0
   );
 
-  $$("#categoryChips .chip").forEach(chip => {
 
-    chip.classList.toggle(
-      "active",
-      chip.dataset.category === state.category
-    );
+  $$("#categoryChips .chip")
+    .forEach(chip => {
 
-  });
+      chip.classList.toggle(
+        "active",
+        chip.dataset.category ===
+        state.category
+      );
+
+    });
 
 }
 
+
+/* =========================================
+   RESET FILTERS
+========================================= */
 
 function resetFilters() {
 
@@ -598,22 +592,27 @@ function resetFilters() {
   state.location = "";
   state.sort = "newest";
 
-  if ($("#searchInput")) $("#searchInput").value = "";
-  if ($("#categoryFilter")) $("#categoryFilter").value = "";
-  if ($("#locationFilter")) $("#locationFilter").value = "";
-  if ($("#sortSelect")) $("#sortSelect").value = "newest";
+
+  $("#searchInput").value = "";
+  $("#categoryFilter").value = "";
+  $("#locationFilter").value = "";
+  $("#sortSelect").value = "newest";
+
 
   renderListings();
+
 }
 
 
-/* =========================================================
+/* =========================================
    LOAD LISTINGS FROM FIRESTORE
-========================================================= */
+========================================= */
 
 async function loadListings() {
 
-  setText("#resultsCount", "Loading listings…");
+  $("#resultsCount").textContent =
+    "Loading listings…";
+
 
   try {
 
@@ -622,50 +621,68 @@ async function loadListings() {
       where("status", "==", "active")
     );
 
-    const snapshot = await getDocs(listingsQuery);
 
-    state.listings = snapshot.docs.map(snap => {
+    const snapshot =
+      await getDocs(listingsQuery);
 
-      const data = snap.data();
 
-      return {
-        ...data,
-        id: snap.id,
-        createdMillis: timestampToMillis(
-          data.createdAt
-        ) || Number(data.createdMillis || 0)
-      };
+    state.listings =
+      snapshot.docs.map(snap => {
 
-    });
+        const data =
+          snap.data();
+
+
+        const createdMillis =
+          data.createdAt?.toMillis
+            ? data.createdAt.toMillis()
+            : Number(
+                data.createdMillis || 0
+              );
+
+
+        return {
+          ...data,
+          id: snap.id,
+          createdMillis
+        };
+
+      });
+
 
     renderListings();
 
+
   } catch (error) {
 
-    showError(
-      error,
+    console.error(
+      "Could not load listings:",
+      error
+    );
+
+
+    grid.innerHTML = "";
+
+
+    $("#resultsCount").textContent =
+      "Marketplace could not load";
+
+
+    $("#emptyState").classList.remove(
+      "hidden"
+    );
+
+
+    $("#emptyState h3").textContent =
+      "Unable to load listings";
+
+
+    $("#emptyState p").textContent =
+      "Check your Firestore database and security rules, then refresh the page.";
+
+
+    showToast(
       "Could not load marketplace listings."
-    );
-
-    if (grid) {
-      grid.innerHTML = "";
-    }
-
-    setText(
-      "#resultsCount",
-      "Marketplace could not load"
-    );
-
-    setHidden("#emptyState", false);
-
-    setText(
-      "#emptyState h3",
-      "Unable to load listings"
-    );
-
-    setText(
-      "#emptyState p",
-      "Check Firebase configuration and Firestore security rules."
     );
 
   }
@@ -673,137 +690,148 @@ async function loadListings() {
 }
 
 
-/* =========================================================
-   ACCOUNT PROFILE LOADING
-========================================================= */
+/* =========================================
+   USER PROFILE
+========================================= */
 
 async function loadProfile(user) {
 
   if (!user) {
 
     state.profile = null;
-    state.seller = null;
-    state.subscription = null;
-    state.isAdmin = false;
 
     return;
+
   }
+
 
   try {
 
-    const [
-      userSnapshot,
-      sellerSnapshot,
-      subscriptionSnapshot,
-      tokenResult
-    ] = await Promise.all([
+    const snapshot =
+      await getDoc(
+        doc(db, "sellers", user.uid)
+      );
 
-      getDoc(userRef(user.uid)),
 
-      getDoc(sellerRef(user.uid)),
+    state.profile =
+      snapshot.exists()
 
-      getDoc(subscriptionRef(user.uid)),
+        ? snapshot.data()
 
-      user.getIdTokenResult(true)
+        : {
+            displayName:
+              user.displayName || "",
 
-    ]);
+            email:
+              user.email || ""
+          };
 
-    state.profile = userSnapshot.exists()
-      ? userSnapshot.data()
-      : {
-          displayName: user.displayName || "",
-          email: user.email || ""
-        };
-
-    state.seller = sellerSnapshot.exists()
-      ? sellerSnapshot.data()
-      : null;
-
-    state.subscription = subscriptionSnapshot.exists()
-      ? subscriptionSnapshot.data()
-      : null;
-
-    /*
-      Admin access comes from a trusted Firebase custom claim.
-      Never use a user-editable Firestore role field.
-    */
-
-    state.isAdmin =
-      tokenResult.claims.admin === true;
 
   } catch (error) {
 
-    showError(
-      error,
-      "Could not load account information."
+    console.warn(
+      "Seller profile could not be read:",
+      error
     );
 
-    state.profile = {
-      displayName: user.displayName || "",
-      email: user.email || ""
-    };
 
-    state.seller = null;
-    state.subscription = null;
-    state.isAdmin = false;
+    state.profile = {
+
+      displayName:
+        user.displayName || "",
+
+      email:
+        user.email || ""
+
+    };
 
   }
 
 }
 
 
-/* =========================================================
-   AUTHENTICATION UI
-========================================================= */
+/* =========================================
+   ACCOUNT USER INTERFACE
+========================================= */
 
 function setAuthUI(user) {
 
-  const button = $("#signInButton");
+  const button =
+    $("#signInButton");
+
 
   if (!button) return;
+
 
   if (user) {
 
     const name =
+
       state.profile?.displayName ||
+
       user.displayName ||
+
       user.email ||
-      "Account";
+
+      "Seller";
+
+
+    const adminText =
+      isAdmin(user)
+        ? "ADMIN: "
+        : "Account: ";
+
 
     button.textContent =
-      "Account: " +
-      (name.length > 18
-        ? name.slice(0, 17) + "…"
-        : name);
+      adminText +
+      (
+        name.length > 18
+          ? name.slice(0, 17) + "…"
+          : name
+      );
+
 
     button.title =
-      "Open your account dashboard";
+      isAdmin(user)
+
+        ? "Signed in as administrator."
+
+        : "Signed in as " +
+          name +
+          ". Click to sign out.";
+
 
   } else {
 
-    button.textContent = "Sign in";
+    button.textContent =
+      "Sign in";
+
 
     button.title =
-      "Sign in to your PoultryLink account";
+      "Sign in to manage seller listings";
 
   }
 
 }
 
 
-/* =========================================================
-   AUTHENTICATION DIALOG
-========================================================= */
+/* =========================================
+   AUTHENTICATION
+========================================= */
 
 function openAuth(mode = "signin") {
 
   state.authMode = mode;
 
-  $("#authForm")?.reset();
 
-  setText("#authMessage", "");
+  $("#authForm").reset();
+
+
+  $("#authMessage").textContent = "";
+
 
   updateAuthModeUI();
+
 
   openDialog("authDialog");
 
@@ -815,69 +843,75 @@ function updateAuthModeUI() {
   const creating =
     state.authMode === "signup";
 
-  setText(
-    "#authTitle",
-    creating
-      ? "Create your PoultryLink account"
-      : "Welcome to PoultryLink"
-  );
 
-  setText(
-    "#authSubtitle",
+  $("#authTitle").textContent =
     creating
-      ? "Register to join Nigeria's poultry marketplace."
-      : "Sign in to continue."
-  );
 
-  setHidden(
-    "#authNameWrap",
+      ? "Create your seller account"
+
+      : "Welcome to PoultryLink";
+
+
+  $("#authSubtitle").textContent =
+    creating
+
+      ? "Create an account to publish and manage listings."
+
+      : "Sign in to manage your listings.";
+
+
+  $("#authNameWrap").classList.toggle(
+    "hidden",
     !creating
   );
 
-  if ($("#authName")) {
-    $("#authName").required = creating;
-  }
 
-  setText(
-    "#authModeButton",
+  $("#authName").required =
+    creating;
+
+
+  $("#authModeButton").textContent =
     creating
+
       ? "I already have an account"
-      : "Create account"
-  );
 
-  setText(
-    "#authSubmitButton",
+      : "Create account";
+
+
+  $("#authSubmitButton").textContent =
     creating
+
       ? "Create account"
-      : "Sign in"
-  );
 
-  if ($("#authPassword")) {
+      : "Sign in";
 
-    $("#authPassword").autocomplete =
-      creating
-        ? "new-password"
-        : "current-password";
 
-  }
+  $("#authPassword").autocomplete =
+    creating
+
+      ? "new-password"
+
+      : "current-password";
 
 }
 
 
 function friendlyAuthError(error) {
 
-  const code = error?.code || "";
+  const code =
+    error?.code || "";
+
 
   const messages = {
 
     "auth/email-already-in-use":
-      "An account already exists for this email.",
+      "An account already exists for this email. Try signing in.",
 
     "auth/invalid-email":
       "Enter a valid email address.",
 
     "auth/weak-password":
-      "Choose a stronger password with at least 6 characters.",
+      "Choose a password with at least 6 characters.",
 
     "auth/invalid-credential":
       "Email or password is incorrect.",
@@ -889,46 +923,53 @@ function friendlyAuthError(error) {
       "Email or password is incorrect.",
 
     "auth/too-many-requests":
-      "Too many attempts. Try again later.",
+      "Too many attempts. Wait a little and try again.",
 
     "auth/network-request-failed":
       "Network problem. Check your internet connection."
 
   };
 
-  return messages[code] ||
-    "Authentication failed. Check your details and try again.";
+
+  return (
+    messages[code] ||
+
+    "Authentication failed. Please check your details and try again."
+  );
 
 }
 
-
-/* =========================================================
-   CREATE ACCOUNT / SIGN IN
-========================================================= */
 
 async function handleAuthSubmit(event) {
 
   event.preventDefault();
 
-  const email = $("#authEmail")?.value.trim() || "";
 
-  const password = $("#authPassword")?.value || "";
+  const email =
+    $("#authEmail").value.trim();
 
-  const name = $("#authName")?.value.trim() || "";
 
-  setText("#authMessage", "Please wait…");
+  const password =
+    $("#authPassword").value;
 
-  const submitButton = $("#authSubmitButton");
 
-  if (submitButton) submitButton.disabled = true;
+  const name =
+    $("#authName").value.trim();
+
+
+  $("#authMessage").textContent =
+    "Please wait…";
+
+
+  $("#authSubmitButton").disabled =
+    true;
+
 
   try {
 
-    if (state.authMode === "signup") {
-
-      if (name.length < 2) {
-        throw new Error("Enter your full name.");
-      }
+    if (
+      state.authMode === "signup"
+    ) {
 
       const credential =
         await createUserWithEmailAndPassword(
@@ -937,35 +978,49 @@ async function handleAuthSubmit(event) {
           password
         );
 
-      await updateProfile(credential.user, {
-        displayName: name
-      });
 
-      /*
-        Every new account starts as a buyer.
-        Seller permissions are granted separately.
-      */
-
-      await setDoc(
-        doc(db, "users", credential.user.uid),
+      await updateProfile(
+        credential.user,
         {
-          uid: credential.user.uid,
-          displayName: name,
-          email: credential.user.email || email,
-          accountType: "buyer",
-          createdAt: serverTimestamp()
+          displayName: name
         }
       );
 
+
+      await setDoc(
+        doc(
+          db,
+          "sellers",
+          credential.user.uid
+        ),
+        {
+
+          displayName: name,
+
+          email:
+            credential.user.email ||
+            email,
+
+          createdAt:
+            serverTimestamp()
+
+        }
+      );
+
+
       state.profile = {
+
         displayName: name,
-        email,
-        accountType: "buyer"
+
+        email
+
       };
 
+
       showToast(
-        "Your PoultryLink account has been created."
+        "Seller account created successfully."
       );
+
 
     } else {
 
@@ -975,91 +1030,53 @@ async function handleAuthSubmit(event) {
         password
       );
 
-      showToast("Signed in successfully.");
+
+      showToast(
+        "Signed in successfully."
+      );
 
     }
 
-    closeDialog($("#authDialog"));
+
+    closeDialog(
+      $("#authDialog")
+    );
+
 
   } catch (error) {
 
-    showError(error, "Authentication failed.");
-
-    setText(
-      "#authMessage",
-      error.message || friendlyAuthError(error)
+    console.error(
+      "Authentication error:",
+      error
     );
+
+
+    $("#authMessage").textContent =
+      friendlyAuthError(error);
+
 
   } finally {
 
-    if (submitButton) submitButton.disabled = false;
+    $("#authSubmitButton").disabled =
+      false;
 
   }
 
 }
 
 
-/* =========================================================
-   SELLER ELIGIBILITY
-========================================================= */
-
-function sellerEligibility() {
-
-  if (!state.user) {
-
-    return {
-      allowed: false,
-      reason: "Sign in before publishing products."
-    };
-
-  }
-
-  if (!state.seller) {
-
-    return {
-      allowed: false,
-      reason: "Submit your seller verification application first."
-    };
-
-  }
-
-  if (state.seller.verificationStatus !== "approved") {
-
-    return {
-      allowed: false,
-      reason: "Your seller account has not been approved."
-    };
-
-  }
-
-  if (!isSubscriptionActive(state.subscription)) {
-
-    return {
-      allowed: false,
-      reason: "You need an active seller subscription."
-    };
-
-  }
-
-  return {
-    allowed: true,
-    reason: ""
-  };
-
-}
-
-
-/* =========================================================
-   LISTING FORM
-========================================================= */
+/* =========================================
+   CREATE / EDIT LISTING
+========================================= */
 
 function openListingForm(item = null) {
 
   if (!state.user) {
 
     showToast(
-      "Sign in before listing a product."
+      "Sign in or create a seller account before listing a product."
     );
+
 
     openAuth("signin");
 
@@ -1067,74 +1084,79 @@ function openListingForm(item = null) {
 
   }
 
-  const eligibility = sellerEligibility();
 
-  if (!eligibility.allowed) {
+  const canEdit =
+    !item ||
+    item.ownerId === state.user.uid ||
+    isAdmin();
 
-    showToast(eligibility.reason);
 
-    if (!state.seller) {
+  if (!canEdit) {
 
-      openDialog("verificationDialog");
-
-    } else if (
-      state.seller.verificationStatus !== "approved"
-    ) {
-
-      showToast(
-        "Your seller application is awaiting approval."
-      );
-
-    } else {
-
-      openDialog("subscriptionDialog");
-
-    }
+    showToast(
+      "You do not have permission to edit this listing."
+    );
 
     return;
 
   }
 
-  state.editingId = item?.id || null;
 
-  $("#listingForm")?.reset();
+  state.editingId =
+    item?.id || null;
 
-  setText("#formMessage", "");
 
-  if ($("#editingListingId")) {
-    $("#editingListingId").value =
-      state.editingId || "";
-  }
+  $("#listingForm").reset();
 
-  setText(
-    "#listingTitle",
+
+  $("#formMessage").textContent =
+    "";
+
+
+  $("#editingListingId").value =
+    state.editingId || "";
+
+
+  $("#listingTitle").textContent =
     state.editingId
-      ? "Edit your listing"
-      : "List a product"
-  );
 
-  setText(
-    "#saveListingButton",
+      ? (
+          isAdmin() &&
+          item?.ownerId !== state.user.uid
+
+            ? "Admin edit listing"
+
+            : "Edit your listing"
+        )
+
+      : "List a product";
+
+
+  $("#saveListingButton").textContent =
     state.editingId
+
       ? "Save changes"
-      : "Publish listing"
-  );
 
-  if ($("#listingSeller")) {
-    $("#listingSeller").value =
-      item?.seller ||
-      state.seller?.businessName ||
-      state.profile?.displayName ||
-      "";
-  }
+      : "Publish listing";
 
-  if ($("#listingPhone")) {
-    $("#listingPhone").value =
-      item?.phone ||
-      state.seller?.phone ||
-      state.profile?.phone ||
-      "";
-  }
+
+  const profileName =
+
+    state.profile?.displayName ||
+
+    state.user.displayName ||
+
+    "";
+
+
+  $("#listingSeller").value =
+    item?.seller ||
+    profileName;
+
+
+  $("#listingPhone").value =
+    item?.phone || "";
+
 
   if (item) {
 
@@ -1164,79 +1186,102 @@ function openListingForm(item = null) {
 
   }
 
-  openDialog("listingDialog");
+
+  openDialog(
+    "listingDialog"
+  );
 
 }
 
 
-/* =========================================================
-   GET LISTING FORM DATA
-========================================================= */
+/* =========================================
+   GET FORM DATA
+========================================= */
 
 function getFormListing() {
 
-  const form = $("#listingForm");
+  const data =
+    new FormData(
+      $("#listingForm")
+    );
 
-  const data = new FormData(form);
 
-  const category = String(
-    data.get("category") || ""
-  );
+  const category =
+    String(
+      data.get("category") || ""
+    );
+
+
+  const phone =
+    normalisePhone(
+      data.get("phone")
+    );
+
 
   return {
 
-    title: String(
-      data.get("title") || ""
-    ).trim(),
+    title:
+      String(
+        data.get("title") || ""
+      ).trim(),
 
     category,
 
-    price: Number(
-      data.get("price")
-    ),
+    price:
+      Number(
+        data.get("price")
+      ),
 
-    quantity: String(
-      data.get("quantity") || ""
-    ).trim(),
+    quantity:
+      String(
+        data.get("quantity") || ""
+      ).trim(),
 
-    unit: String(
-      data.get("unit") || "per unit"
-    ),
+    unit:
+      String(
+        data.get("unit") ||
+        "per unit"
+      ),
 
-    state: String(
-      data.get("state") || ""
-    ),
+    state:
+      String(
+        data.get("state") || ""
+      ),
 
-    town: String(
-      data.get("town") || ""
-    ).trim(),
+    town:
+      String(
+        data.get("town") || ""
+      ).trim(),
 
-    seller: String(
-      data.get("seller") || ""
-    ).trim(),
+    seller:
+      String(
+        data.get("seller") || ""
+      ).trim(),
 
-    phone: normalisePhone(
-      data.get("phone")
-    ),
+    phone,
 
-    description: String(
-      data.get("description") || ""
-    ).trim(),
+    description:
+      String(
+        data.get("description") || ""
+      ).trim(),
 
-    emoji: categoryEmoji(category),
+    emoji:
+      categoryEmoji(category),
 
-    art: categoryClass(category),
+    art:
+      categoryClass(category),
 
-    status: "active"
+    status:
+      "active"
 
   };
 
 }
 
 
-/* =========================================================
+/* =========================================
    VALIDATE LISTING
-========================================================= */
+========================================= */
 
 function validateListing(item) {
 
@@ -1244,82 +1289,88 @@ function validateListing(item) {
     item.title.length < 3 ||
     item.title.length > 100
   ) {
-
     return "Product title must be between 3 and 100 characters.";
-
   }
 
-  if (!Object.hasOwn(categoryInfo, item.category)) {
 
+  if (
+    !Object.hasOwn(
+      categoryInfo,
+      item.category
+    )
+  ) {
     return "Choose a valid product category.";
-
   }
+
 
   if (
     !Number.isFinite(item.price) ||
-    item.price <= 0 ||
-    item.price > CONFIG.maxListingPrice
+    item.price < 0 ||
+    item.price > 1000000000
   ) {
-
-    return "Enter a valid product price.";
-
+    return "Enter a valid price.";
   }
+
 
   if (
     !item.quantity ||
     item.quantity.length > 80
   ) {
-
     return "Enter the available quantity.";
-
   }
 
-  if (!item.state || !item.town) {
 
-    return "Enter your state and town.";
-
+  if (
+    !item.state ||
+    !item.town ||
+    item.town.length > 80
+  ) {
+    return "Enter a valid state and town.";
   }
+
 
   if (
     item.seller.length < 2 ||
     item.seller.length > 80
   ) {
-
     return "Enter a valid seller or farm name.";
-
   }
+
 
   if (
     item.phone.length < 10 ||
     item.phone.length > 15
   ) {
-
-    return "Enter a valid WhatsApp number.";
-
+    return "Enter a valid phone number.";
   }
 
-  if (item.description.length > 1200) {
 
-    return "Description must not exceed 1,200 characters.";
-
+  if (
+    item.description.length > 1200
+  ) {
+    return "Description must be 1,200 characters or fewer.";
   }
+
 
   return "";
 
 }
 
 
-/* =========================================================
+/* =========================================
    SAVE LISTING
-========================================================= */
+========================================= */
 
 async function saveListing(event) {
 
   event.preventDefault();
 
+
   if (!state.user) {
 
-    closeDialog($("#listingDialog"));
+    closeDialog(
+      $("#listingDialog")
+    );
 
     openAuth("signin");
 
@@ -1327,177 +1378,229 @@ async function saveListing(event) {
 
   }
 
-  const eligibility = sellerEligibility();
 
-  if (!eligibility.allowed) {
+  const item =
+    getFormListing();
 
-    setText(
-      "#formMessage",
-      eligibility.reason
-    );
 
-    return;
+  const validation =
+    validateListing(item);
 
-  }
-
-  const item = getFormListing();
-
-  const validation = validateListing(item);
 
   if (validation) {
 
-    setText("#formMessage", validation);
+    $("#formMessage").textContent =
+      validation;
 
     return;
 
   }
 
-  setText(
-    "#formMessage",
-    "Saving listing…"
-  );
 
-  const saveButton = $("#saveListingButton");
+  $("#formMessage").textContent =
+    "Saving listing…";
 
-  if (saveButton) saveButton.disabled = true;
+
+  $("#saveListingButton").disabled =
+    true;
+
 
   try {
 
     if (state.editingId) {
 
-      const current = state.listings.find(
-        listing => listing.id === state.editingId
-      );
+      const current =
+        state.listings.find(
+          listing =>
+            listing.id ===
+            state.editingId
+        );
 
-      if (
-        !current ||
-        current.ownerId !== state.user.uid
-      ) {
+
+      const canEdit =
+        current &&
+        (
+          current.ownerId ===
+          state.user.uid ||
+
+          isAdmin()
+        );
+
+
+      if (!canEdit) {
 
         throw new Error(
-          "You can only edit your own listings."
+          "You do not have permission to edit this listing."
         );
 
       }
 
+
       await updateDoc(
-        doc(db, "products", state.editingId),
+        doc(
+          db,
+          "products",
+          state.editingId
+        ),
         {
           ...item,
-          updatedAt: serverTimestamp()
+
+          updatedAt:
+            serverTimestamp(),
+
+          updatedBy:
+            state.user.uid
         }
       );
 
-      showToast("Listing updated successfully.");
+
+      showToast(
+        "Listing updated."
+      );
+
 
     } else {
 
       await addDoc(
-        collection(db, "products"),
+        collection(
+          db,
+          "products"
+        ),
         {
 
           ...item,
 
-          ownerId: state.user.uid,
+          ownerId:
+            state.user.uid,
 
-          createdAt: serverTimestamp(),
+          createdAt:
+            serverTimestamp(),
 
-          createdMillis: Date.now()
+          createdMillis:
+            Date.now()
 
         }
       );
 
-      showToast("Your product has been published.");
+
+      showToast(
+        "Your listing is now published."
+      );
 
     }
 
-    closeDialog($("#listingDialog"));
 
-    resetFilters();
+    closeDialog(
+      $("#listingDialog")
+    );
+
 
     await loadListings();
 
-    await loadDashboardData();
-
-    $("#marketplace")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
 
   } catch (error) {
 
-    showError(error, "Could not save listing.");
-
-    setText(
-      "#formMessage",
-      error.message?.includes("only edit")
-        ? error.message
-        : "Could not save listing. Check your connection and Firestore Rules."
+    console.error(
+      "Could not save listing:",
+      error
     );
+
+
+    $("#formMessage").textContent =
+      error?.message ||
+      "Could not save listing. Check your Firestore security rules and try again.";
+
 
   } finally {
 
-    if (saveButton) saveButton.disabled = false;
+    $("#saveListingButton").disabled =
+      false;
 
   }
 
 }
 
 
-/* =========================================================
+/* =========================================
    DELETE LISTING
-========================================================= */
+========================================= */
 
 async function deleteListing(id) {
 
-  const item = state.listings.find(
-    listing => listing.id === id
-  );
+  const item =
+    state.listings.find(
+      listing =>
+        listing.id === id
+    );
 
-  if (
-    !item ||
-    !state.user ||
-    item.ownerId !== state.user.uid
-  ) {
+
+  const canDelete =
+    item &&
+    state.user &&
+    (
+      item.ownerId ===
+      state.user.uid ||
+
+      isAdmin()
+    );
+
+
+  if (!canDelete) {
 
     showToast(
-      "You can only delete your own listings."
+      "You do not have permission to delete this listing."
     );
 
     return;
 
   }
 
-  if (!window.confirm(
-    `Delete "${item.title}"? This cannot be undone.`
-  )) {
 
+  if (
+    !window.confirm(
+      `Delete "${item.title}"? This cannot be undone.`
+    )
+  ) {
     return;
-
   }
+
 
   try {
 
     await deleteDoc(
-      doc(db, "products", id)
+      doc(
+        db,
+        "products",
+        id
+      )
     );
 
-    state.listings = state.listings.filter(
-      listing => listing.id !== id
-    );
+
+    state.listings =
+      state.listings.filter(
+        listing =>
+          listing.id !== id
+      );
+
 
     renderListings();
 
-    showToast("Listing deleted.");
 
-    await loadDashboardData();
+    showToast(
+      "Listing deleted."
+    );
+
 
   } catch (error) {
 
-    showError(error, "Delete failed.");
+    console.error(
+      "Delete failed:",
+      error
+    );
+
 
     showToast(
-      "Could not delete listing. Check Firestore Rules."
+      "Could not delete listing. Check Firestore security rules."
     );
 
   }
@@ -1505,21 +1608,30 @@ async function deleteListing(id) {
 }
 
 
-/* =========================================================
+/* =========================================
    WHATSAPP CONTACT
-========================================================= */
+========================================= */
 
 function contactSeller(id) {
 
-  const item = state.listings.find(
-    listing => listing.id === id
-  );
+  const item =
+    state.listings.find(
+      listing =>
+        listing.id === id
+    );
+
 
   if (!item) return;
 
-  const phone = normalisePhone(item.phone);
+
+  const phone =
+    normalisePhone(
+      item.phone
+    );
+
 
   if (
+    !phone ||
     phone.length < 10 ||
     phone.length > 15
   ) {
@@ -1532,14 +1644,21 @@ function contactSeller(id) {
 
   }
 
+
   const message =
+
     `Hello ${item.seller || "seller"}, ` +
+
     `I found your "${item.title}" listing on PoultryLink. ` +
+
     `Is it still available? Please confirm the price, quantity ` +
+
     `and delivery or pickup details.`;
+
 
   const url =
     `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+
 
   window.open(
     url,
@@ -1550,1940 +1669,329 @@ function contactSeller(id) {
 }
 
 
-/* =========================================================
-   PRODUCT DETAILS
-========================================================= */
+/* =========================================
+   LISTING DETAILS
+========================================= */
 
 function showDetails(id) {
 
-  const item = state.listings.find(
-    listing => listing.id === id
-  );
+  const item =
+    state.listings.find(
+      listing =>
+        listing.id === id
+    );
+
 
   if (!item) return;
 
+
   const location = [
+
     item.town,
     item.state
+
   ].filter(Boolean).join(", ");
 
-  const owned = Boolean(
-    state.user &&
-    item.ownerId === state.user.uid
-  );
 
-  setHTML(
-    "#detailContent",
-
-    `
-
-      <div class="modal-header">
-
-        <div>
-
-          <span class="section-kicker">
-            LISTING DETAILS
-          </span>
-
-          <p>
-            Review the offer before contacting the seller.
-          </p>
-
-        </div>
-
-        <button
-          type="button"
-          class="modal-close"
-          data-close="detailDialog"
-          aria-label="Close"
-        >
-          ×
-        </button>
-
-      </div>
-
-      <div class="detail-hero">
-
-        <div class="listing-art ${categoryClass(item.category)}">
-
-          <span class="art-emoji">
-            ${escapeHTML(item.emoji || categoryEmoji(item.category))}
-          </span>
-
-        </div>
-
-        <div>
-
-          <h2 id="detailHeading">
-            ${escapeHTML(item.title)}
-          </h2>
-
-          <span class="category-label">
-            ${escapeHTML(item.category)}
-          </span>
-
-          <div class="listing-price">
-            ${formatNaira(item.price)}
-            <small>/ ${escapeHTML(item.unit || "unit")}</small>
-          </div>
-
-        </div>
-
-      </div>
-
-      <p class="detail-copy">
-        ${escapeHTML(
-          item.description ||
-          "Contact the seller to confirm product details."
-        )}
-      </p>
-
-      <div class="detail-facts">
-
-        <div class="detail-fact">
-          <small>AVAILABLE QUANTITY</small>
-          <strong>${escapeHTML(item.quantity || "Ask seller")}</strong>
-        </div>
-
-        <div class="detail-fact">
-          <small>LOCATION</small>
-          <strong>${escapeHTML(location || "Not specified")}</strong>
-        </div>
-
-        <div class="detail-fact">
-          <small>SELLER / FARM</small>
-          <strong>${escapeHTML(item.seller || "Poultry seller")}</strong>
-        </div>
-
-        <div class="detail-fact">
-          <small>LISTING STATUS</small>
-          <strong>${owned ? "Your listing" : "Seller listing"}</strong>
-        </div>
-
-      </div>
-
-      <p class="detail-copy">
-
-        <strong>Safety reminder:</strong>
-
-        Confirm stock, quality, final price, transport and
-        payment arrangements directly with the seller.
-
-      </p>
-
-      <button
-        type="button"
-        class="btn btn-primary full-button"
-        data-contact="${escapeHTML(item.id)}"
-      >
-        Contact seller on WhatsApp ↗
-      </button>
-
-    `
-  );
-
-  openDialog("detailDialog");
-
-}
-
-
-/* =========================================================
-   SELLER VERIFICATION
-========================================================= */
-
-function openVerificationForm() {
-
-  if (!state.user) {
-
-    openAuth("signin");
-
-    return;
-
-  }
-
-  if (state.seller?.verificationStatus === "approved") {
-
-    showToast(
-      "Your seller account has already been approved."
-    );
-
-    return;
-
-  }
-
-  $("#verificationForm")?.reset();
-
-  setText("#verificationMessage", "");
-
-  if (state.seller) {
-
-    $("#verificationBusinessName").value =
-      state.seller.businessName || "";
-
-    $("#verificationFullName").value =
-      state.seller.fullName ||
-      state.profile?.displayName ||
-      "";
-
-    $("#verificationPhone").value =
-      state.seller.phone ||
-      state.profile?.phone ||
-      "";
-
-    $("#verificationState").value =
-      state.seller.state || "";
-
-    $("#verificationTown").value =
-      state.seller.town || "";
-
-    $("#verificationAddress").value =
-      state.seller.address || "";
-
-    $("#verificationDescription").value =
-      state.seller.description || "";
-
-  } else {
-
-    $("#verificationFullName").value =
-      state.profile?.displayName ||
-      state.user.displayName ||
-      "";
-
-    $("#verificationPhone").value =
-      state.profile?.phone || "";
-
-  }
-
-  openDialog("verificationDialog");
-
-}
-
-
-async function submitVerification(event) {
-
-  event.preventDefault();
-
-  if (!state.user) {
-
-    openAuth("signin");
-
-    return;
-
-  }
-
-  const data = new FormData(
-    $("#verificationForm")
-  );
-
-  const application = {
-
-    uid: state.user.uid,
-
-    email: state.user.email || "",
-
-    businessName: String(
-      data.get("businessName") || ""
-    ).trim(),
-
-    fullName: String(
-      data.get("fullName") || ""
-    ).trim(),
-
-    phone: normalisePhone(
-      data.get("phone")
-    ),
-
-    state: String(
-      data.get("state") || ""
-    ),
-
-    town: String(
-      data.get("town") || ""
-    ).trim(),
-
-    address: String(
-      data.get("address") || ""
-    ).trim(),
-
-    description: String(
-      data.get("description") || ""
-    ).trim(),
-
-    documentReference: String(
-      data.get("documentReference") || ""
-    ).trim()
-
-  };
-
-  if (
-    application.businessName.length < 2 ||
-    application.fullName.length < 2 ||
-    application.phone.length < 10 ||
-    !application.state ||
-    !application.town ||
-    !application.address ||
-    application.description.length < 10
-  ) {
-
-    setText(
-      "#verificationMessage",
-      "Complete all required fields with valid information."
-    );
-
-    return;
-
-  }
-
-  const submitButton = $("#submitVerificationButton");
-
-  if (submitButton) submitButton.disabled = true;
-
-  setText(
-    "#verificationMessage",
-    "Submitting application…"
-  );
-
-  try {
-
-    const applicationRef = doc(
-      db,
-      "sellerApplications",
+  const owned =
+    Boolean(
+      state.user &&
+      item.ownerId ===
       state.user.uid
     );
 
-    const existingApplication = await getDoc(
-      applicationRef
-    );
 
-    if (
-      existingApplication.exists() &&
-      existingApplication.data().status === "approved"
-    ) {
+  $("#detailContent").innerHTML = `
 
-      throw new Error(
-        "Your seller application has already been approved."
-      );
+    <div class="modal-header">
 
-    }
+      <div>
 
-    /*
-      The applicant can submit an application.
-      They cannot approve themselves.
+        <span class="section-kicker">
+          LISTING DETAILS
+        </span>
 
-      Firestore Rules must restrict this document to its owner
-      and prevent the owner from setting status to approved.
-    */
+        <p>
+          Review the offer before contacting the seller.
+        </p>
 
-    await setDoc(
-      applicationRef,
-      {
+      </div>
 
-        ...application,
 
-        status: "pending",
+      <button
+        type="button"
+        class="modal-close"
+        data-close="detailDialog"
+        aria-label="Close"
+      >
+        ×
+      </button>
 
-        submittedAt: serverTimestamp(),
+    </div>
 
-        updatedAt: serverTimestamp()
 
-      },
-      {
-        merge: true
-      }
-    );
+    <div class="detail-hero">
 
-    /*
-      The seller profile is created as pending.
-      Firestore Rules must prevent the applicant from changing
-      verificationStatus to approved.
-    */
+      <div
+        class="listing-art ${categoryClass(item.category)}"
+      >
 
-    await setDoc(
-      sellerRef(),
-      {
+        <span class="art-emoji">
 
-        uid: state.user.uid,
+          ${escapeHTML(
+            item.emoji ||
+            categoryEmoji(item.category)
+          )}
 
-        email: state.user.email || "",
+        </span>
 
-        displayName: application.fullName,
+      </div>
 
-        businessName: application.businessName,
 
-        fullName: application.fullName,
+      <div>
 
-        phone: application.phone,
+        <h2 id="detailHeading">
 
-        state: application.state,
+          ${escapeHTML(item.title)}
 
-        town: application.town,
+        </h2>
 
-        address: application.address,
 
-        description: application.description,
+        <span class="category-label">
 
-        verificationStatus: "pending",
+          ${escapeHTML(item.category)}
 
-        updatedAt: serverTimestamp()
+        </span>
 
-      },
-      {
-        merge: true
-      }
-    );
 
-    await loadProfile(state.user);
+        <div class="listing-price">
 
-    await loadDashboardData();
+          ${formatNaira(item.price)}
 
-    closeDialog($("#verificationDialog"));
+          <small>
 
-    showToast(
-      "Your seller verification application has been submitted."
-    );
+            / ${escapeHTML(
+              item.unit || "unit"
+            )}
 
-  } catch (error) {
-
-    showError(
-      error,
-      "Could not submit verification application."
-    );
-
-    setText(
-      "#verificationMessage",
-      error.message ||
-      "Could not submit your application. Try again."
-    );
-
-  } finally {
-
-    if (submitButton) submitButton.disabled = false;
-
-  }
-
-}
-
-
-/* =========================================================
-   SUBSCRIPTION STATUS
-========================================================= */
-
-function renderSubscriptionStatus() {
-
-  const container = $("#subscriptionStatus");
-
-  if (!container) return;
-
-  if (!state.seller) {
-
-    container.textContent =
-      "Complete seller verification first.";
-
-    return;
-
-  }
-
-  if (state.seller.verificationStatus !== "approved") {
-
-    container.textContent =
-      "Seller verification approval is required.";
-
-    return;
-
-  }
-
-  if (isSubscriptionActive(state.subscription)) {
-
-    container.innerHTML = `
-
-      <p>
-        <strong>Active subscription</strong>
-      </p>
-
-      <p>
-        Plan:
-        ${escapeHTML(state.subscription.plan || "Seller plan")}
-      </p>
-
-      <p>
-        Expires:
-        ${friendlyDate(state.subscription.expiresAt)}
-      </p>
-
-    `;
-
-  } else {
-
-    container.textContent =
-      "No active seller subscription.";
-
-  }
-
-}
-
-
-/* =========================================================
-   SUBSCRIPTION PAYMENT INITIALIZATION
-========================================================= */
-
-async function startSubscription(plan) {
-
-  if (!state.user) {
-
-    openAuth("signin");
-
-    return;
-
-  }
-
-  if (!state.seller) {
-
-    showToast(
-      "Submit your seller verification application first."
-    );
-
-    openVerificationForm();
-
-    return;
-
-  }
-
-  if (state.seller.verificationStatus !== "approved") {
-
-    showToast(
-      "Your seller verification must be approved before subscribing."
-    );
-
-    return;
-
-  }
-
-  if (!["monthly", "yearly"].includes(plan)) {
-
-    showToast("Invalid subscription plan.");
-
-    return;
-
-  }
-
-  setText(
-    "#subscriptionMessage",
-    "Connecting to secure payment service…"
-  );
-
-  const buttons = $$("[data-subscription-plan]");
-
-  buttons.forEach(button => {
-    button.disabled = true;
-  });
-
-  try {
-
-    const token = await state.user.getIdToken();
-
-    const response = await fetch(
-      CONFIG.paymentEndpoint,
-      {
-
-        method: "POST",
-
-        headers: {
-
-          "Content-Type": "application/json",
-
-          "Authorization": `Bearer ${token}`
-
-        },
-
-        /*
-          The backend must determine the amount from the plan.
-          Never accept a payment amount supplied by the browser.
-        */
-
-        body: JSON.stringify({
-          plan
-        })
-
-      }
-    );
-
-    if (!response.ok) {
-
-      throw new Error(
-        "Secure payment service is not available. Please try again later."
-      );
-
-    }
-
-    const result = await response.json();
-
-    if (!result.authorization_url) {
-
-      throw new Error(
-        "Payment service did not return a checkout link."
-      );
-
-    }
-
-    /*
-      Subscription activation must happen on the backend
-      only after Paystack payment verification.
-    */
-
-    window.location.assign(
-      result.authorization_url
-    );
-
-  } catch (error) {
-
-    showError(
-      error,
-      "Could not initialize payment."
-    );
-
-    setText(
-      "#subscriptionMessage",
-      error.message ||
-      "Payment could not be started. Please try again."
-    );
-
-  } finally {
-
-    buttons.forEach(button => {
-      button.disabled = false;
-    });
-
-  }
-
-}
-
-
-/* =========================================================
-   DASHBOARD
-========================================================= */
-
-async function openDashboard() {
-
-  if (!state.user) {
-
-    openAuth("signin");
-
-    return;
-
-  }
-
-  state.dashboardOpen = true;
-
-  setHidden("#dashboardSection", false);
-
-  setHidden("#adminSection", !state.isAdmin);
-
-  await loadDashboardData();
-
-  $("#dashboardSection")?.scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-
-}
-
-
-function closeDashboard() {
-
-  state.dashboardOpen = false;
-
-  setHidden("#dashboardSection", true);
-
-  setHidden("#adminSection", true);
-
-}
-
-
-async function loadDashboardData() {
-
-  if (!state.user) return;
-
-  setText(
-    "#dashboardUserName",
-    state.profile?.displayName ||
-    state.user.displayName ||
-    "PoultryLink user"
-  );
-
-  setText(
-    "#dashboardUserEmail",
-    state.user.email || ""
-  );
-
-  setText(
-    "#dashboardRoleBadge",
-    state.isAdmin
-      ? "Administrator"
-      : state.seller
-        ? "Seller account"
-        : "Buyer account"
-  );
-
-  renderProfileInformation();
-
-  renderVerificationStatus();
-
-  renderSubscriptionStatus();
-
-  await Promise.all([
-
-    loadMyListings(),
-
-    loadSavedProducts(),
-
-    loadMyOrders(),
-
-    loadRecentActivities()
-
-  ]);
-
-  if (state.isAdmin) {
-
-    await loadAdminDashboard();
-
-  }
-
-}
-
-
-/* =========================================================
-   DASHBOARD PROFILE
-========================================================= */
-
-function renderProfileInformation() {
-
-  const profile = state.profile || {};
-
-  setHTML(
-    "#profileInformation",
-
-    `
-
-      <p>
-        <strong>Name:</strong>
-        ${escapeHTML(profile.displayName || "Not provided")}
-      </p>
-
-      <p>
-        <strong>Email:</strong>
-        ${escapeHTML(state.user?.email || "Not available")}
-      </p>
-
-      <p>
-        <strong>Phone:</strong>
-        ${escapeHTML(profile.phone || "Not provided")}
-      </p>
-
-      <p>
-        <strong>Location:</strong>
-        ${escapeHTML(profile.location || "Not provided")}
-      </p>
-
-    `
-  );
-
-}
-
-
-/* =========================================================
-   EDIT PROFILE
-========================================================= */
-
-function openProfileEditor() {
-
-  if (!state.user) return;
-
-  $("#profileName").value =
-    state.profile?.displayName ||
-    state.user.displayName ||
-    "";
-
-  $("#profilePhone").value =
-    state.profile?.phone || "";
-
-  $("#profileLocation").value =
-    state.profile?.location || "";
-
-  setText("#profileMessage", "");
-
-  openDialog("profileDialog");
-
-}
-
-
-async function saveProfile(event) {
-
-  event.preventDefault();
-
-  if (!state.user) return;
-
-  const displayName =
-    $("#profileName").value.trim();
-
-  const phone =
-    normalisePhone($("#profilePhone").value);
-
-  const location =
-    $("#profileLocation").value.trim();
-
-  if (displayName.length < 2) {
-
-    setText(
-      "#profileMessage",
-      "Enter a valid name."
-    );
-
-    return;
-
-  }
-
-  const saveButton = $("#saveProfileButton");
-
-  if (saveButton) saveButton.disabled = true;
-
-  setText(
-    "#profileMessage",
-    "Saving profile…"
-  );
-
-  try {
-
-    await updateProfile(
-      state.user,
-      {
-        displayName
-      }
-    );
-
-    await setDoc(
-      userRef(),
-      {
-
-        displayName,
-
-        phone,
-
-        location,
-
-        updatedAt: serverTimestamp()
-
-      },
-      {
-        merge: true
-      }
-    );
-
-    /*
-      Update only ordinary seller contact/profile fields.
-      Never allow this operation to change verification status.
-    */
-
-    if (state.seller) {
-
-      await updateDoc(
-        sellerRef(),
-        {
-
-          displayName,
-
-          phone,
-
-          updatedAt: serverTimestamp()
-
-        }
-      );
-
-    }
-
-    await loadProfile(state.user);
-
-    setAuthUI(state.user);
-
-    await loadDashboardData();
-
-    closeDialog($("#profileDialog"));
-
-    showToast("Profile updated successfully.");
-
-  } catch (error) {
-
-    showError(error, "Could not update profile.");
-
-    setText(
-      "#profileMessage",
-      "Could not save your profile. Try again."
-    );
-
-  } finally {
-
-    if (saveButton) saveButton.disabled = false;
-
-  }
-
-}
-
-
-/* =========================================================
-   SELLER VERIFICATION STATUS
-========================================================= */
-
-function renderVerificationStatus() {
-
-  const container = $("#sellerVerificationStatus");
-
-  if (!container) return;
-
-  if (!state.seller) {
-
-    container.innerHTML = `
-      <p>No seller verification application found.</p>
-    `;
-
-    return;
-
-  }
-
-  const status =
-    state.seller.verificationStatus || "not submitted";
-
-  const messages = {
-
-    pending:
-      "Your application is waiting for administrator review.",
-
-    approved:
-      "Your seller account has been verified.",
-
-    rejected:
-      "Your application was not approved. Review the administrator's feedback."
-
-  };
-
-  container.innerHTML = `
-
-    <p>
-      <strong>Status:</strong>
-      ${escapeHTML(status.toUpperCase())}
-    </p>
-
-    <p>
-      ${escapeHTML(
-        messages[status] || "Complete seller verification."
-      )}
-    </p>
-
-    ${
-      state.seller.rejectionReason
-        ? `<p>${escapeHTML(state.seller.rejectionReason)}</p>`
-        : ""
-    }
-
-  `;
-
-  setText(
-    "#verificationButton",
-    status === "approved"
-      ? "Verified seller"
-      : status === "pending"
-        ? "View application status"
-        : "Complete verification"
-  );
-
-}
-
-
-/* =========================================================
-   MY LISTINGS
-========================================================= */
-
-async function loadMyListings() {
-
-  if (!state.user) return;
-
-  try {
-
-    const listingsQuery = query(
-      collection(db, "products"),
-      where("ownerId", "==", state.user.uid)
-    );
-
-    const snapshot = await getDocs(listingsQuery);
-
-    const listings = snapshot.docs.map(snap => ({
-      ...snap.data(),
-      id: snap.id
-    }));
-
-    setHTML(
-      "#myListingsContent",
-
-      listings.length
-
-        ? listings.map(item => `
-
-            <div class="dashboard-item">
-
-              <strong>
-                ${escapeHTML(item.title)}
-              </strong>
-
-              <span>
-                ${formatNaira(item.price)}
-              </span>
-
-              <small>
-                Status: ${escapeHTML(item.status || "Unknown")}
-              </small>
-
-            </div>
-
-          `).join("")
-
-        : "<p>You have not published any listings.</p>"
-
-    );
-
-  } catch (error) {
-
-    showError(error, "Could not load your listings.");
-
-    setText(
-      "#myListingsContent",
-      "Unable to load listings."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   SAVED PRODUCTS
-========================================================= */
-
-async function loadSavedProducts() {
-
-  if (!state.user) return;
-
-  try {
-
-    const savedQuery = query(
-      collection(db, "users", state.user.uid, "savedProducts"),
-      limit(20)
-    );
-
-    const snapshot = await getDocs(savedQuery);
-
-    const saved = snapshot.docs.map(snap => ({
-      ...snap.data(),
-      id: snap.id
-    }));
-
-    setHTML(
-      "#savedProductsContent",
-
-      saved.length
-
-        ? saved.map(item => `
-
-            <div class="dashboard-item">
-
-              <strong>
-                ${escapeHTML(item.title || "Saved product")}
-              </strong>
-
-              <small>
-                ${escapeHTML(item.category || "")}
-              </small>
-
-              <button
-                type="button"
-                class="text-button"
-                data-remove-saved="${escapeHTML(item.id)}"
-              >
-                Remove
-              </button>
-
-            </div>
-
-          `).join("")
-
-        : "<p>No saved products yet.</p>"
-
-    );
-
-  } catch (error) {
-
-    showError(error, "Could not load saved products.");
-
-    setText(
-      "#savedProductsContent",
-      "Saved products are currently unavailable."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   SAVE PRODUCT
-========================================================= */
-
-async function saveProduct(id) {
-
-  if (!state.user) {
-
-    openAuth("signin");
-
-    return;
-
-  }
-
-  const item = state.listings.find(
-    listing => listing.id === id
-  );
-
-  if (!item) return;
-
-  try {
-
-    await setDoc(
-      doc(
-        db,
-        "users",
-        state.user.uid,
-        "savedProducts",
-        id
-      ),
-
-      {
-
-        productId: id,
-
-        title: item.title,
-
-        category: item.category,
-
-        price: item.price,
-
-        seller: item.seller,
-
-        savedAt: serverTimestamp()
-
-      }
-
-    );
-
-    showToast("Product saved.");
-
-    await loadSavedProducts();
-
-  } catch (error) {
-
-    showError(error, "Could not save product.");
-
-    showToast(
-      "Could not save product. Check your account permissions."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   REMOVE SAVED PRODUCT
-========================================================= */
-
-async function removeSavedProduct(id) {
-
-  if (!state.user) return;
-
-  try {
-
-    await deleteDoc(
-      doc(
-        db,
-        "users",
-        state.user.uid,
-        "savedProducts",
-        id
-      )
-    );
-
-    await loadSavedProducts();
-
-    showToast("Saved product removed.");
-
-  } catch (error) {
-
-    showError(error, "Could not remove saved product.");
-
-  }
-
-}
-
-
-/* =========================================================
-   MY ORDERS
-========================================================= */
-
-async function loadMyOrders() {
-
-  if (!state.user) return;
-
-  try {
-
-    const ordersQuery = query(
-      collection(db, "orders"),
-      where("buyerId", "==", state.user.uid),
-      limit(20)
-    );
-
-    const snapshot = await getDocs(ordersQuery);
-
-    const orders = snapshot.docs.map(snap => ({
-      ...snap.data(),
-      id: snap.id
-    }));
-
-    setHTML(
-      "#myOrdersContent",
-
-      orders.length
-
-        ? orders.map(order => `
-
-            <div class="dashboard-item">
-
-              <strong>
-                Order #${escapeHTML(order.id.slice(0, 8))}
-              </strong>
-
-              <span>
-                ${formatNaira(order.total)}
-              </span>
-
-              <small>
-                Status: ${escapeHTML(order.status || "Pending")}
-              </small>
-
-            </div>
-
-          `).join("")
-
-        : "<p>You have no orders yet.</p>"
-
-    );
-
-  } catch (error) {
-
-    showError(error, "Could not load orders.");
-
-    setText(
-      "#myOrdersContent",
-      "Order information is currently unavailable."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   RECENT ACTIVITIES
-========================================================= */
-
-async function loadRecentActivities() {
-
-  if (!state.user) return;
-
-  try {
-
-    const activityQuery = query(
-      collection(db, "users", state.user.uid, "activities"),
-      orderBy("createdAt", "desc"),
-      limit(10)
-    );
-
-    const snapshot = await getDocs(activityQuery);
-
-    const activities = snapshot.docs.map(snap => ({
-      ...snap.data(),
-      id: snap.id
-    }));
-
-    setHTML(
-      "#recentActivitiesContent",
-
-      activities.length
-
-        ? activities.map(activity => `
-
-            <div class="dashboard-item">
-
-              <strong>
-                ${escapeHTML(activity.title || "Account activity")}
-              </strong>
-
-              <small>
-                ${escapeHTML(activity.description || "")}
-              </small>
-
-            </div>
-
-          `).join("")
-
-        : "<p>No recent activities.</p>"
-
-    );
-
-  } catch (error) {
-
-    showError(error, "Could not load recent activities.");
-
-    setText(
-      "#recentActivitiesContent",
-      "Activity history is currently unavailable."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   ACCOUNT SETTINGS
-========================================================= */
-
-function openAccountSettings() {
-
-  if (!state.user) return;
-
-  setHTML(
-    "#accountSettingsContent",
-
-    `
-
-      <p>
-        <strong>Email:</strong>
-        ${escapeHTML(state.user.email || "")}
-      </p>
-
-      <p>
-        <strong>Account created:</strong>
-        ${friendlyDate(state.user.metadata.creationTime
-          ? new Date(state.user.metadata.creationTime)
-          : null)}
-      </p>
-
-      <p>
-        <strong>Email verified:</strong>
-        ${state.user.emailVerified ? "Yes" : "No"}
-      </p>
-
-    `
-  );
-
-  openDialog("settingsDialog");
-
-}
-
-
-/* =========================================================
-   ADMINISTRATOR DASHBOARD
-========================================================= */
-
-async function loadAdminDashboard() {
-
-  if (!state.user || !state.isAdmin) return;
-
-  try {
-
-    const [
-      usersSnapshot,
-      applicationsSnapshot,
-      subscriptionsSnapshot,
-      listingsSnapshot
-    ] = await Promise.all([
-
-      getDocs(collection(db, "users")),
-
-      getDocs(
-        query(
-          collection(db, "sellerApplications"),
-          where("status", "==", "pending")
-        )
-      ),
-
-      getDocs(
-        query(
-          collection(db, "subscriptions"),
-          where("status", "==", "active")
-        )
-      ),
-
-      getDocs(
-        query(
-          collection(db, "products"),
-          where("status", "==", "active")
-        )
-      )
-
-    ]);
-
-    setText(
-      "#adminTotalUsers",
-      usersSnapshot.size
-    );
-
-    setText(
-      "#adminPendingVerifications",
-      applicationsSnapshot.size
-    );
-
-    setText(
-      "#adminActiveSubscriptions",
-      subscriptionsSnapshot.size
-    );
-
-    setText(
-      "#adminActiveListings",
-      listingsSnapshot.size
-    );
-
-    renderAdminApplications(applicationsSnapshot);
-
-    renderAdminUsers(usersSnapshot);
-
-    renderAdminSubscriptions(subscriptionsSnapshot);
-
-    renderAdminListings(listingsSnapshot);
-
-  } catch (error) {
-
-    showError(
-      error,
-      "Could not load administrator information."
-    );
-
-    showToast(
-      "Administrator data could not be loaded. Check permissions."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   ADMIN: SELLER APPLICATIONS
-========================================================= */
-
-function renderAdminApplications(snapshot) {
-
-  const container = $("#adminVerificationList");
-
-  if (!container) return;
-
-  if (snapshot.empty) {
-
-    container.innerHTML =
-      "<p>No pending seller applications.</p>";
-
-    return;
-
-  }
-
-  container.innerHTML = snapshot.docs.map(snap => {
-
-    const item = snap.data();
-
-    return `
-
-      <div class="dashboard-item">
-
-        <strong>
-          ${escapeHTML(item.businessName)}
-        </strong>
-
-        <small>
-          ${escapeHTML(item.fullName)}
-        </small>
-
-        <small>
-          ${escapeHTML(item.town)}, ${escapeHTML(item.state)}
-        </small>
-
-        <small>
-          ${escapeHTML(item.email)}
-        </small>
-
-        <div class="card-actions">
-
-          <button
-            class="btn btn-primary"
-            type="button"
-            data-approve-seller="${escapeHTML(snap.id)}"
-          >
-            Approve
-          </button>
-
-          <button
-            class="btn btn-outline"
-            type="button"
-            data-reject-seller="${escapeHTML(snap.id)}"
-          >
-            Reject
-          </button>
+          </small>
 
         </div>
 
       </div>
 
-    `;
-
-  }).join("");
-
-}
+    </div>
 
 
-/* =========================================================
-   ADMIN: APPROVE SELLER
-========================================================= */
+    <p class="detail-copy">
 
-async function approveSeller(uid) {
+      ${escapeHTML(
+        item.description ||
+        "Contact the seller to confirm product details."
+      )}
 
-  if (!state.isAdmin) {
-
-    showToast("Administrator access required.");
-
-    return;
-
-  }
-
-  if (!window.confirm(
-    "Approve this seller verification application?"
-  )) {
-
-    return;
-
-  }
-
-  try {
-
-    const applicationSnapshot = await getDoc(
-      doc(db, "sellerApplications", uid)
-    );
-
-    if (!applicationSnapshot.exists()) {
-
-      throw new Error(
-        "Seller application was not found."
-      );
-
-    }
-
-    const application = applicationSnapshot.data();
-
-    if (application.status !== "pending") {
-
-      throw new Error(
-        "This application is no longer pending."
-      );
-
-    }
-
-    /*
-      These writes are permitted only if Firestore Rules
-      require the trusted admin custom claim.
-    */
-
-    await updateDoc(
-      doc(db, "sellerApplications", uid),
-      {
-
-        status: "approved",
-
-        reviewedAt: serverTimestamp(),
-
-        reviewedBy: state.user.uid
-
-      }
-    );
-
-    await setDoc(
-      doc(db, "sellers", uid),
-      {
-
-        verificationStatus: "approved",
-
-        verifiedAt: serverTimestamp(),
-
-        updatedAt: serverTimestamp()
-
-      },
-      {
-        merge: true
-      }
-    );
-
-    showToast("Seller approved.");
-
-    await loadAdminDashboard();
-
-  } catch (error) {
-
-    showError(error, "Could not approve seller.");
-
-    showToast(
-      "Approval failed. Confirm administrator permissions."
-    );
-
-  }
-
-}
+    </p>
 
 
-/* =========================================================
-   ADMIN: REJECT SELLER
-========================================================= */
+    <div class="detail-facts">
 
-async function rejectSeller(uid) {
+      <div class="detail-fact">
 
-  if (!state.isAdmin) {
+        <small>
+          AVAILABLE QUANTITY
+        </small>
 
-    showToast("Administrator access required.");
+        <strong>
 
-    return;
+          ${escapeHTML(
+            item.quantity ||
+            "Ask seller"
+          )}
 
-  }
+        </strong>
 
-  const reason = window.prompt(
-    "Enter the reason for rejecting this application:"
+      </div>
+
+
+      <div class="detail-fact">
+
+        <small>
+          LOCATION
+        </small>
+
+        <strong>
+
+          ${escapeHTML(
+            location ||
+            "Not specified"
+          )}
+
+        </strong>
+
+      </div>
+
+
+      <div class="detail-fact">
+
+        <small>
+          SELLER / FARM
+        </small>
+
+        <strong>
+
+          ${escapeHTML(
+            item.seller ||
+            "Poultry seller"
+          )}
+
+        </strong>
+
+      </div>
+
+
+      <div class="detail-fact">
+
+        <small>
+          LISTING STATUS
+        </small>
+
+        <strong>
+
+          ${
+            owned
+              ? "Your listing"
+              : "Seller listing"
+          }
+
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <p class="detail-copy">
+
+      <strong>
+        Safety reminder:
+      </strong>
+
+      Confirm current stock, quality, final price,
+      transport and payment arrangements directly.
+      PoultryLink does not process payments or guarantee transactions.
+
+    </p>
+
+
+    <button
+      type="button"
+      class="btn btn-primary full-button"
+      data-contact="${escapeHTML(item.id)}"
+    >
+      Contact seller on WhatsApp ↗
+    </button>
+
+  `;
+
+
+  openDialog(
+    "detailDialog"
   );
 
-  if (!reason || !reason.trim()) return;
-
-  try {
-
-    await updateDoc(
-      doc(db, "sellerApplications", uid),
-      {
-
-        status: "rejected",
-
-        rejectionReason: reason.trim(),
-
-        reviewedAt: serverTimestamp(),
-
-        reviewedBy: state.user.uid
-
-      }
-    );
-
-    await setDoc(
-      doc(db, "sellers", uid),
-      {
-
-        verificationStatus: "rejected",
-
-        rejectionReason: reason.trim(),
-
-        updatedAt: serverTimestamp()
-
-      },
-      {
-        merge: true
-      }
-    );
-
-    showToast("Seller application rejected.");
-
-    await loadAdminDashboard();
-
-  } catch (error) {
-
-    showError(error, "Could not reject seller.");
-
-    showToast(
-      "Rejection failed. Check administrator permissions."
-    );
-
-  }
-
 }
 
 
-/* =========================================================
-   ADMIN: USERS
-========================================================= */
-
-function renderAdminUsers(snapshot) {
-
-  const container = $("#adminUsersList");
-
-  if (!container) return;
-
-  if (snapshot.empty) {
-
-    container.innerHTML =
-      "<p>No registered users found.</p>";
-
-    return;
-
-  }
-
-  container.innerHTML = snapshot.docs.map(snap => {
-
-    const user = snap.data();
-
-    return `
-
-      <div class="dashboard-item">
-
-        <strong>
-          ${escapeHTML(user.displayName || "User")}
-        </strong>
-
-        <small>
-          ${escapeHTML(user.email || "")}
-        </small>
-
-        <small>
-          Account type:
-          ${escapeHTML(user.accountType || "buyer")}
-        </small>
-
-      </div>
-
-    `;
-
-  }).join("");
-
-}
-
-
-/* =========================================================
-   ADMIN: SUBSCRIPTIONS
-========================================================= */
-
-function renderAdminSubscriptions(snapshot) {
-
-  const container = $("#adminSubscriptionsList");
-
-  if (!container) return;
-
-  if (snapshot.empty) {
-
-    container.innerHTML =
-      "<p>No active subscriptions.</p>";
-
-    return;
-
-  }
-
-  container.innerHTML = snapshot.docs.map(snap => {
-
-    const item = snap.data();
-
-    return `
-
-      <div class="dashboard-item">
-
-        <strong>
-          ${escapeHTML(item.plan || "Seller subscription")}
-        </strong>
-
-        <small>
-          Seller ID: ${escapeHTML(snap.id)}
-        </small>
-
-        <small>
-          Expires: ${friendlyDate(item.expiresAt)}
-        </small>
-
-      </div>
-
-    `;
-
-  }).join("");
-
-}
-
-
-/* =========================================================
-   ADMIN: MARKETPLACE LISTINGS
-========================================================= */
-
-function renderAdminListings(snapshot) {
-
-  const container = $("#adminListingsList");
-
-  if (!container) return;
-
-  if (snapshot.empty) {
-
-    container.innerHTML =
-      "<p>No active listings.</p>";
-
-    return;
-
-  }
-
-  container.innerHTML = snapshot.docs.map(snap => {
-
-    const item = snap.data();
-
-    return `
-
-      <div class="dashboard-item">
-
-        <strong>
-          ${escapeHTML(item.title || "Product")}
-        </strong>
-
-        <small>
-          ${formatNaira(item.price)}
-        </small>
-
-        <small>
-          Seller: ${escapeHTML(item.seller || "Unknown")}
-        </small>
-
-        <button
-          type="button"
-          class="btn btn-outline"
-          data-moderate-listing="${escapeHTML(snap.id)}"
-        >
-          Suspend listing
-        </button>
-
-      </div>
-
-    `;
-
-  }).join("");
-
-}
-
-
-/* =========================================================
-   ADMIN: SUSPEND LISTING
-========================================================= */
-
-async function suspendListing(id) {
-
-  if (!state.isAdmin) {
-
-    showToast("Administrator access required.");
-
-    return;
-
-  }
-
-  if (!window.confirm(
-    "Suspend this marketplace listing?"
-  )) return;
-
-  try {
-
-    await updateDoc(
-      doc(db, "products", id),
-      {
-
-        status: "suspended",
-
-        suspendedAt: serverTimestamp(),
-
-        suspendedBy: state.user.uid
-
-      }
-    );
-
-    showToast("Listing suspended.");
-
-    await loadListings();
-
-    await loadAdminDashboard();
-
-  } catch (error) {
-
-    showError(error, "Could not suspend listing.");
-
-    showToast(
-      "Suspension failed. Check administrator permissions."
-    );
-
-  }
-
-}
-
-
-/* =========================================================
+/* =========================================
    SEARCH EVENTS
-========================================================= */
+========================================= */
 
-on("#searchForm", "submit", event => {
+$("#searchForm")?.addEventListener(
+  "submit",
+  event => {
 
-  event.preventDefault();
-
-  state.query = $("#searchInput")?.value || "";
-
-  state.category = $("#categoryFilter")?.value || "";
-
-  state.location = $("#locationFilter")?.value || "";
-
-  renderListings();
-
-  $("#marketplace")?.scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-
-});
+    event.preventDefault();
 
 
-on("#categoryChips", "click", event => {
+    state.query =
+      $("#searchInput").value;
 
-  const chip = event.target.closest("[data-category]");
 
-  if (!chip) return;
+    state.category =
+      $("#categoryFilter").value;
 
-  state.category = chip.dataset.category;
 
-  if ($("#categoryFilter")) {
-    $("#categoryFilter").value = state.category;
+    state.location =
+      $("#locationFilter").value;
+
+
+    renderListings();
+
+
+    $("#marketplace")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+
   }
-
-  renderListings();
-
-});
+);
 
 
-on("#sortSelect", "change", event => {
+$("#categoryChips")?.addEventListener(
+  "click",
+  event => {
 
-  state.sort = event.target.value;
-
-  renderListings();
-
-});
-
-
-on("#clearFiltersButton", "click", resetFilters);
-
-on("#emptyClearButton", "click", resetFilters);
+    const chip =
+      event.target.closest(
+        "[data-category]"
+      );
 
 
-/* =========================================================
-   SELLER BUTTONS
-========================================================= */
+    if (!chip) return;
+
+
+    state.category =
+      chip.dataset.category;
+
+
+    $("#categoryFilter").value =
+      state.category;
+
+
+    renderListings();
+
+  }
+);
+
+
+$("#sortSelect")?.addEventListener(
+  "change",
+  event => {
+
+    state.sort =
+      event.target.value;
+
+
+    renderListings();
+
+  }
+);
+
+
+$("#clearFiltersButton")?.addEventListener(
+  "click",
+  resetFilters
+);
+
+
+$("#emptyClearButton")?.addEventListener(
+  "click",
+  resetFilters
+);
+
+
+/* =========================================
+   BUTTON EVENTS
+========================================= */
 
 [
   "sellHeaderButton",
@@ -3491,172 +1999,173 @@ on("#emptyClearButton", "click", resetFilters);
   "sellBannerButton"
 ].forEach(id => {
 
-  const button = document.getElementById(id);
-
-  if (!button) return;
-
-  button.addEventListener(
-    "click",
-    () => openListingForm()
-  );
+  document
+    .getElementById(id)
+    ?.addEventListener(
+      "click",
+      () => openListingForm()
+    );
 
 });
 
 
-/* =========================================================
-   SIGN IN / ACCOUNT BUTTON
-========================================================= */
+$("#signInButton")?.addEventListener(
+  "click",
+  async () => {
 
-on("#signInButton", "click", async () => {
+    if (state.user) {
 
-  if (state.user) {
+      if (
+        window.confirm(
+          "Sign out of PoultryLink?"
+        )
+      ) {
 
-    await openDashboard();
+        try {
 
-  } else {
+          await signOut(auth);
 
-    openAuth("signin");
+          showToast(
+            "You have signed out."
+          );
+
+        } catch (error) {
+
+          console.error(error);
+
+          showToast(
+            "Could not sign out. Please try again."
+          );
+
+        }
+
+      }
+
+    } else {
+
+      openAuth("signin");
+
+    }
 
   }
-
-});
-
-
-/* =========================================================
-   AUTH EVENTS
-========================================================= */
-
-on("#authModeButton", "click", () => {
-
-  state.authMode =
-    state.authMode === "signin"
-      ? "signup"
-      : "signin";
-
-  setText("#authMessage", "");
-
-  updateAuthModeUI();
-
-});
+);
 
 
-on("#authForm", "submit", handleAuthSubmit);
+$("#authModeButton")?.addEventListener(
+  "click",
+  () => {
+
+    state.authMode =
+
+      state.authMode === "signin"
+
+        ? "signup"
+
+        : "signin";
 
 
-/* =========================================================
-   FORM EVENTS
-========================================================= */
-
-on("#listingForm", "submit", saveListing);
-
-on("#verificationForm", "submit", submitVerification);
-
-on("#profileForm", "submit", saveProfile);
+    $("#authMessage").textContent =
+      "";
 
 
-/* =========================================================
-   DASHBOARD EVENTS
-========================================================= */
-
-on("#dashboardCloseButton", "click", closeDashboard);
-
-on("#editProfileButton", "click", openProfileEditor);
-
-on("#verificationButton", "click", openVerificationForm);
-
-
-on("#subscriptionButton", "click", () => {
-
-  if (!state.user) {
-
-    openAuth("signin");
-
-    return;
+    updateAuthModeUI();
 
   }
-
-  openDialog("subscriptionDialog");
-
-});
+);
 
 
-on("#manageListingsButton", "click", () => {
+$("#authForm")?.addEventListener(
+  "submit",
+  handleAuthSubmit
+);
 
-  $("#marketplace")?.scrollIntoView({
-    behavior: "smooth"
+
+$("#listingForm")?.addEventListener(
+  "submit",
+  saveListing
+);
+
+
+/* =========================================
+   MOBILE MENU
+========================================= */
+
+$("#menuButton")?.addEventListener(
+  "click",
+  () => {
+
+    const nav =
+      $("#desktopNav");
+
+
+    if (!nav) return;
+
+
+    const isOpen =
+      nav.classList.toggle(
+        "open"
+      );
+
+
+    $("#menuButton").setAttribute(
+      "aria-expanded",
+      String(isOpen)
+    );
+
+
+    $("#menuButton").textContent =
+      isOpen
+        ? "×"
+        : "☰";
+
+  }
+);
+
+
+$$("#desktopNav a")
+  .forEach(link => {
+
+    link.addEventListener(
+      "click",
+      () => {
+
+        $("#desktopNav")?.classList.remove(
+          "open"
+        );
+
+
+        $("#menuButton")?.setAttribute(
+          "aria-expanded",
+          "false"
+        );
+
+
+        if ($("#menuButton")) {
+
+          $("#menuButton").textContent =
+            "☰";
+
+        }
+
+      }
+    );
+
   });
 
-});
 
-
-on("#accountSettingsButton", "click", openAccountSettings);
-
-
-/* =========================================================
-   SUBSCRIPTION BUTTONS
-========================================================= */
-
-onAll("[data-subscription-plan]", "click", event => {
-
-  startSubscription(
-    event.currentTarget.dataset.subscriptionPlan
-  );
-
-});
-
-
-/* =========================================================
-   MOBILE NAVIGATION
-========================================================= */
-
-on("#menuButton", "click", () => {
-
-  const nav = $("#desktopNav");
-
-  if (!nav) return;
-
-  const isOpen =
-    nav.classList.toggle("open");
-
-  $("#menuButton")?.setAttribute(
-    "aria-expanded",
-    String(isOpen)
-  );
-
-  if ($("#menuButton")) {
-    $("#menuButton").textContent =
-      isOpen ? "×" : "☰";
-  }
-
-});
-
-
-onAll("#desktopNav a", "click", () => {
-
-  $("#desktopNav")?.classList.remove("open");
-
-  $("#menuButton")?.setAttribute(
-    "aria-expanded",
-    "false"
-  );
-
-  if ($("#menuButton")) {
-    $("#menuButton").textContent = "☰";
-  }
-
-});
-
-
-/* =========================================================
-   GLOBAL BUTTON EVENTS
-========================================================= */
+/* =========================================
+   DYNAMIC BUTTON EVENTS
+========================================= */
 
 document.addEventListener(
   "click",
-  async event => {
+  event => {
 
     const closeButton =
-      event.target.closest("[data-close]");
+      event.target.closest(
+        "[data-close]"
+      );
+
 
     if (closeButton) {
 
@@ -3668,8 +2177,12 @@ document.addEventListener(
 
     }
 
+
     const detailButton =
-      event.target.closest("[data-detail]");
+      event.target.closest(
+        "[data-detail]"
+      );
+
 
     if (detailButton) {
 
@@ -3679,8 +2192,12 @@ document.addEventListener(
 
     }
 
+
     const contactButton =
-      event.target.closest("[data-contact]");
+      event.target.closest(
+        "[data-contact]"
+      );
+
 
     if (contactButton) {
 
@@ -3690,19 +2207,31 @@ document.addEventListener(
 
     }
 
+
     const editButton =
-      event.target.closest("[data-edit]");
+      event.target.closest(
+        "[data-edit]"
+      );
+
 
     if (editButton) {
 
-      const item = state.listings.find(
-        listing =>
-          listing.id === editButton.dataset.edit
-      );
+      const item =
+        state.listings.find(
+          listing =>
+            listing.id ===
+            editButton.dataset.edit
+        );
+
 
       if (
         item &&
-        item.ownerId === state.user?.uid
+        (
+          item.ownerId ===
+          state.user?.uid ||
+
+          isAdmin()
+        )
       ) {
 
         openListingForm(item);
@@ -3711,68 +2240,17 @@ document.addEventListener(
 
     }
 
+
     const deleteButton =
-      event.target.closest("[data-delete]");
+      event.target.closest(
+        "[data-delete]"
+      );
+
 
     if (deleteButton) {
 
-      await deleteListing(
+      deleteListing(
         deleteButton.dataset.delete
-      );
-
-    }
-
-    const saveButton =
-      event.target.closest("[data-save]");
-
-    if (saveButton) {
-
-      await saveProduct(
-        saveButton.dataset.save
-      );
-
-    }
-
-    const removeSavedButton =
-      event.target.closest("[data-remove-saved]");
-
-    if (removeSavedButton) {
-
-      await removeSavedProduct(
-        removeSavedButton.dataset.removeSaved
-      );
-
-    }
-
-    const approveButton =
-      event.target.closest("[data-approve-seller]");
-
-    if (approveButton) {
-
-      await approveSeller(
-        approveButton.dataset.approveSeller
-      );
-
-    }
-
-    const rejectButton =
-      event.target.closest("[data-reject-seller]");
-
-    if (rejectButton) {
-
-      await rejectSeller(
-        rejectButton.dataset.rejectSeller
-      );
-
-    }
-
-    const moderateButton =
-      event.target.closest("[data-moderate-listing]");
-
-    if (moderateButton) {
-
-      await suspendListing(
-        moderateButton.dataset.moderateListing
       );
 
     }
@@ -3781,31 +2259,34 @@ document.addEventListener(
 );
 
 
-/* =========================================================
-   DIALOG BACKDROP
-========================================================= */
+/* =========================================
+   CLOSE DIALOG WHEN CLICKING BACKGROUND
+========================================= */
 
-$$("dialog").forEach(dialog => {
+$$("dialog")
+  .forEach(dialog => {
 
-  dialog.addEventListener(
-    "click",
-    event => {
+    dialog.addEventListener(
+      "click",
+      event => {
 
-      if (event.target === dialog) {
+        if (
+          event.target === dialog
+        ) {
 
-        closeDialog(dialog);
+          closeDialog(dialog);
+
+        }
 
       }
+    );
 
-    }
-  );
-
-});
+  });
 
 
-/* =========================================================
-   AUTHENTICATION STATE
-========================================================= */
+/* =========================================
+   AUTH STATE
+========================================= */
 
 onAuthStateChanged(
   auth,
@@ -3813,50 +2294,36 @@ onAuthStateChanged(
 
     state.user = user;
 
-    if (!user) {
-
-      state.profile = null;
-      state.seller = null;
-      state.subscription = null;
-      state.isAdmin = false;
-
-      setAuthUI(null);
-
-      closeDashboard();
-
-      renderListings();
-
-      return;
-
-    }
 
     await loadProfile(user);
 
+
     setAuthUI(user);
 
+
     renderListings();
-
-    if (state.dashboardOpen) {
-
-      await loadDashboardData();
-
-    }
 
   }
 );
 
 
-/* =========================================================
-   APPLICATION STARTUP
-========================================================= */
+/* =========================================
+   START APPLICATION
+========================================= */
 
-setText(
-  "#year",
-  new Date().getFullYear()
-);
+const yearElement =
+  $("#year");
+
+
+if (yearElement) {
+
+  yearElement.textContent =
+    new Date().getFullYear();
+
+}
+
 
 updateAuthModeUI();
 
-renderListings();
 
 loadListings();
