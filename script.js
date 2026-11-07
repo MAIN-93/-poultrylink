@@ -896,40 +896,37 @@ async function loadProfile(user) {
 
 function setAuthUI(user) {
 
-  const button =
-    $("#signInButton");
+  const signInButton = $("#signInButton");
+  const logoutButton = $("#logoutButton");
 
-
-  if (!button) return;
-
+  if (!signInButton) return;
 
   if (user) {
 
     const name =
-
       state.profile?.displayName ||
-
       user.displayName ||
+      user.email ||
+      "My Account";
 
-      user.email;
-
-
-    button.textContent =
+    signInButton.textContent =
       isAdmin(user)
+        ? "Admin Dashboard"
+        : "My Account";
 
-        ? "Admin"
+    signInButton.title =
+      `Signed in as ${name}`;
 
-        : (
-            name.length > 18
-              ? name.slice(0, 17) + "…"
-              : name
-          );
-
+    logoutButton?.classList.remove("hidden");
 
   } else {
 
-    button.textContent =
-      "Sign in";
+    signInButton.textContent = "Sign in";
+
+    signInButton.title =
+      "Sign in to your PoultryLink account";
+
+    logoutButton?.classList.add("hidden");
 
   }
 
@@ -2665,15 +2662,32 @@ $("#signInButton")?.addEventListener(
 
     if (state.user) {
 
-      if (isAdmin()) {
-        openAdminDashboard();
-      } else {
-        openDashboard();
-      }
+      openDialog("dashboardDialog");
 
     } else {
 
       openAuth("signin");
+
+    }
+
+  }
+);
+
+$("#logoutButton")?.addEventListener(
+  "click",
+  async () => {
+
+    try {
+
+      await signOut(auth);
+
+      showToast("You have logged out successfully.");
+
+    } catch (error) {
+
+      console.error("Logout error:", error);
+
+      showToast("Could not log out. Please try again.");
 
     }
 
