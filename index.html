@@ -829,160 +829,349 @@ content=“PoultryLink — buy and sell poultry, eggs, feed and farm supplies ac
   </div>
 </div>
   </dialog>
-  <!-- =========================
-       SELLER APPLICATION
-  ========================== -->
-  <dialog
-    class="modal"
-    id="sellerApplicationDialog"
-    aria-labelledby="sellerApplicationTitle"
-  >
-<div class="modal-card">
-  <div class="modal-header">
-    <div>
-      <span class="section-kicker">
-        SELLER VERIFICATION
-      </span>
-      <h2 id="sellerApplicationTitle">
-        Apply to become a seller
-      </h2>
-      <p>
-        Your application will be reviewed by the PoultryLink owner.
-      </p>
-    </div>
-    <button
-      class="modal-close"
-      type="button"
-      data-close="sellerApplicationDialog"
-      aria-label="Close"
-    >
-      ×
-    </button>
-  </div>
-  <form id="sellerApplicationForm">
-    <div class="form-grid">
-      <label class="form-field full">
-        Farm or business name
-        <input
-          id="sellerBusinessName"
-          name="businessName"
-          required
-          minlength="2"
-          maxlength="100"
-          placeholder="e.g. Maine Poultry Farm"
-        >
-      </label>
-      <label class="form-field">
-        State
-        <select
-          id="sellerState"
-          name="state"
-          required
-        >
-          <option value="">
-            Choose state
-          </option>
-          <option>Abia</option>
-          <option>Adamawa</option>
-          <option>Akwa Ibom</option>
-          <option>Anambra</option>
-          <option>Bauchi</option>
-          <option>Bayelsa</option>
-          <option>Benue</option>
-          <option>Borno</option>
-          <option>Cross River</option>
-          <option>Delta</option>
-          <option>Ebonyi</option>
-          <option>Edo</option>
-          <option>Ekiti</option>
-          <option>Enugu</option>
-          <option>FCT</option>
-          <option>Gombe</option>
-          <option>Imo</option>
-          <option>Jigawa</option>
-          <option>Kaduna</option>
-          <option>Kano</option>
-          <option>Katsina</option>
-          <option>Kebbi</option>
-          <option>Kogi</option>
-          <option>Kwara</option>
-          <option>Lagos</option>
-          <option>Nasarawa</option>
-          <option>Niger</option>
-          <option>Ogun</option>
-          <option>Ondo</option>
-          <option>Osun</option>
-          <option>Oyo</option>
-          <option>Plateau</option>
-          <option>Rivers</option>
-          <option>Sokoto</option>
-          <option>Taraba</option>
-          <option>Yobe</option>
-          <option>Zamfara</option>
-        </select>
-      </label>
-      <label class="form-field">
-        Town / area
-        <input
-          id="sellerTown"
-          name="town"
-          required
-          maxlength="80"
-          placeholder="e.g. Port Harcourt"
-        >
-      </label>
-      <label class="form-field full">
-        WhatsApp phone number
-        <input
-          id="sellerPhone"
-          name="phone"
-          type="tel"
-          required
-          maxlength="25"
-          placeholder="e.g. 2348012345678"
-        >
-      </label>
-      <label class="form-field full">
-        Tell us about your business
-        <textarea
-          id="sellerDescription"
-          name="description"
-          rows="4"
-          maxlength="1000"
-          placeholder="Tell us what poultry products you sell."
-          required
-        ></textarea>
-      </label>
-    </div>
-    <div class="form-disclaimer">
-      PoultryLink may review this information before approving
-      your seller account. Only provide accurate information.
-    </div>
-    <p
-      class="form-message"
-      id="sellerApplicationMessage"
-      role="status"
-      aria-live="polite"
-    ></p>
-    <div class="modal-actions">
+<!-- =========================================
+     SELLER VERIFICATION MODAL
+========================================= -->
+<dialog class="modal" id="sellerVerificationModal">
+  <div class="modal-card">
+
+    <div class="modal-header">
+      <div>
+        <span class="section-kicker">SELLER TRUST & VERIFICATION</span>
+        <h2>Become a Verified Seller</h2>
+        <p>
+          Complete your verification to help buyers confidently identify
+          trustworthy sellers on PoultryLink.
+        </p>
+      </div>
+
       <button
-        class="btn btn-outline"
+        class="modal-close"
         type="button"
-        data-close="sellerApplicationDialog"
+        data-close-modal="sellerVerificationModal"
+        aria-label="Close"
       >
-        Cancel
-      </button>
-      <button
-        class="btn btn-primary"
-        id="submitSellerApplicationButton"
-        type="submit"
-      >
-        Submit application
+        ×
       </button>
     </div>
-  </form>
-</div>
-  </dialog>
+
+    <!-- Verification Levels -->
+    <div class="verification-intro">
+
+      <div class="verification-level">
+        <span class="verification-icon">👤</span>
+
+        <div>
+          <strong>Identity Verification</strong>
+          <p>
+            Confirm your identity through a secure identity verification
+            process.
+          </p>
+        </div>
+      </div>
+
+      <div class="verification-level">
+        <span class="verification-icon">📱</span>
+
+        <div>
+          <strong>Contact Verification</strong>
+          <p>
+            Your contact information helps buyers know you are reachable.
+          </p>
+        </div>
+      </div>
+
+      <div class="verification-level">
+        <span class="verification-icon">🏡</span>
+
+        <div>
+          <strong>Farm / Business Verification</strong>
+          <p>
+            Provide information about the poultry farm or business you operate.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- VERIFICATION FORM -->
+    <form id="sellerVerificationForm">
+
+      <!-- PERSONAL INFORMATION -->
+      <div class="verification-section">
+
+        <div class="verification-section-heading">
+          <span class="verification-step">01</span>
+
+          <div>
+            <h3>Personal Information</h3>
+            <p>Provide your correct legal information.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+
+          <label class="form-field">
+            Full Legal Name
+            <input
+              type="text"
+              id="verificationFullName"
+              placeholder="Enter your full legal name"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            Phone Number
+            <input
+              type="tel"
+              id="verificationPhone"
+              placeholder="e.g. 08012345678"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            Email Address
+            <input
+              type="email"
+              id="verificationEmail"
+              placeholder="Enter your email address"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            State
+            <input
+              type="text"
+              id="verificationState"
+              placeholder="e.g. Rivers State"
+              required
+            />
+          </label>
+
+          <label class="form-field full">
+            City / Local Government Area
+            <input
+              type="text"
+              id="verificationCity"
+              placeholder="Enter your city or local government area"
+              required
+            />
+          </label>
+
+        </div>
+
+      </div>
+
+
+      <!-- BUSINESS INFORMATION -->
+      <div class="verification-section">
+
+        <div class="verification-section-heading">
+          <span class="verification-step">02</span>
+
+          <div>
+            <h3>Farm / Business Information</h3>
+            <p>Help us verify the poultry business you operate.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+
+          <label class="form-field">
+            Farm / Business Name
+            <input
+              type="text"
+              id="verificationBusinessName"
+              placeholder="Enter your farm or business name"
+              required
+            />
+          </label>
+
+          <label class="form-field">
+            Years of Experience
+            <select id="verificationExperience" required>
+              <option value="">Select experience</option>
+              <option value="Less than 1 year">Less than 1 year</option>
+              <option value="1–2 years">1–2 years</option>
+              <option value="3–5 years">3–5 years</option>
+              <option value="More than 5 years">More than 5 years</option>
+            </select>
+          </label>
+
+          <label class="form-field full">
+            Farm / Business Address
+            <textarea
+              id="verificationAddress"
+              placeholder="Enter the address of your farm or business"
+              required
+            ></textarea>
+          </label>
+
+          <label class="form-field full">
+            What Poultry Products Do You Sell?
+            <select id="verificationProducts" required>
+              <option value="">Select your main product</option>
+              <option value="Eggs">Eggs</option>
+              <option value="Broilers">Broilers</option>
+              <option value="Layers">Layers</option>
+              <option value="Day-old Chicks">Day-old Chicks</option>
+              <option value="Poultry Feed">Poultry Feed</option>
+              <option value="Poultry Equipment">Poultry Equipment</option>
+              <option value="Multiple Products">Multiple Products</option>
+            </select>
+          </label>
+
+          <label class="form-field full">
+            Tell Us About Your Farm / Business
+            <textarea
+              id="verificationDescription"
+              placeholder="Briefly describe your farm, business, products and operations"
+              required
+            ></textarea>
+          </label>
+
+        </div>
+
+      </div>
+
+
+      <!-- IDENTITY VERIFICATION -->
+      <div class="verification-section">
+
+        <div class="verification-section-heading">
+          <span class="verification-step">03</span>
+
+          <div>
+            <h3>Identity Verification</h3>
+            <p>Confirm your identity through our secure verification process.</p>
+          </div>
+        </div>
+
+        <div class="secure-verification-box">
+
+          <span class="secure-icon">🔐</span>
+
+          <div>
+            <strong>Your identity information is protected</strong>
+
+            <p>
+              Identity verification may require a government-issued ID and
+              a live selfie through a secure verification provider.
+              PoultryLink should not store sensitive identity numbers directly
+              in the normal seller profile.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Provider Integration Placeholder -->
+        <div class="identity-verification-action">
+
+          <div>
+            <strong>Identity Verification Status</strong>
+            <small id="identityVerificationStatus">
+              Not started
+            </small>
+          </div>
+
+          <button
+            type="button"
+            class="btn btn-outline"
+            id="startIdentityVerification"
+          >
+            🔐 Verify Identity
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- FARM VERIFICATION -->
+      <div class="verification-section">
+
+        <div class="verification-section-heading">
+          <span class="verification-step">04</span>
+
+          <div>
+            <h3>Farm / Business Verification</h3>
+            <p>Provide evidence that your poultry business is genuine.</p>
+          </div>
+        </div>
+
+        <label class="form-field full">
+          Upload Farm / Business Photos
+          <input
+            type="file"
+            id="verificationPhotos"
+            accept="image/*"
+            multiple
+          />
+        </label>
+
+        <p class="upload-note">
+          You can upload clear photos of your farm, poultry birds,
+          products, shop or business location.
+        </p>
+
+      </div>
+
+
+      <!-- CONSENT -->
+      <div class="verification-consent">
+
+        <label class="consent-row">
+
+          <input
+            type="checkbox"
+            id="verificationConsent"
+            required
+          />
+
+          <span>
+            I confirm that the information I provided is correct and I agree
+            that PoultryLink may review my seller and business information
+            for verification purposes.
+          </span>
+
+        </label>
+
+      </div>
+
+
+      <!-- FORM MESSAGE -->
+      <p class="form-message" id="sellerVerificationMessage"></p>
+
+
+      <!-- SUBMIT -->
+      <div class="modal-actions">
+
+        <button
+          type="button"
+          class="btn btn-outline"
+          data-close-modal="sellerVerificationModal"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          id="submitVerificationButton"
+        >
+          Submit for Review
+        </button>
+
+      </div>
+
+    </form>
+
+  </div>
+</dialog>
   <!-- =========================
        ADMIN DASHBOARD
   ========================== -->
