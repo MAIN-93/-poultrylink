@@ -1680,3 +1680,272 @@ img {
     gap: 10px;
   }
 }
+
+/* =========================================
+   SELLER VERIFICATION
+========================================= */
+
+.verification-intro {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.verification-level {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--mint-light);
+}
+
+.verification-icon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  box-shadow: 0 4px 12px rgba(18, 61, 43, 0.06);
+}
+
+.verification-level strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--forest);
+  font-size: 0.85rem;
+}
+
+.verification-level p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+
+/* =========================================
+   VERIFICATION SECTIONS
+========================================= */
+
+.verification-section {
+  margin-top: 28px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.verification-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.verification-step {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--forest);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.verification-section-heading h3 {
+  margin: 0 0 3px;
+  color: var(--forest);
+  font-family: "Manrope", sans-serif;
+  font-size: 1rem;
+}
+
+.verification-section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+
+/* =========================================
+   SECURE IDENTITY VERIFICATION
+========================================= */
+
+.secure-verification-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #d9e8dd;
+  border-radius: 13px;
+  background: var(--mint-light);
+}
+
+.secure-icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--forest);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+
+.secure-verification-box strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--forest);
+  font-size: 0.82rem;
+}
+
+.secure-verification-box p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+
+/* =========================================
+   IDENTITY VERIFICATION STATUS
+========================================= */
+
+.identity-verification-action {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.identity-verification-action strong {
+  display: block;
+  color: var(--forest);
+  font-size: 0.8rem;
+}
+
+.identity-verification-action small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+
+/* =========================================
+   FARM / BUSINESS UPLOAD
+========================================= */
+
+#verificationPhotos {
+  padding: 10px;
+  cursor: pointer;
+  background: var(--mint-light);
+}
+
+.upload-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+
+/* =========================================
+   CONSENT
+========================================= */
+
+.verification-consent {
+  margin-top: 26px;
+  padding: 16px;
+  border-radius: 13px;
+  background: var(--gold-light);
+}
+
+.consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #705621;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.consent-row input {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--forest);
+}
+
+
+/* =========================================
+   VERIFICATION STATUS BADGES
+========================================= */
+
+.verification-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.verification-status.pending {
+  background: var(--gold-light);
+  color: #9d7019;
+}
+
+.verification-status.verified {
+  background: var(--mint);
+  color: var(--green-dark);
+}
+
+.verification-status.rejected {
+  background: #fde8e8;
+  color: var(--danger);
+}
+
+
+/* =========================================
+   MOBILE SELLER VERIFICATION
+========================================= */
+
+@media (max-width: 760px) {
+
+  .verification-level {
+    padding: 13px;
+  }
+
+  .identity-verification-action {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .identity-verification-action .btn {
+    width: 100%;
+  }
+
+  .secure-verification-box {
+    padding: 14px;
+  }
+
+  .verification-consent {
+    padding: 14px;
+  }
+
+}
