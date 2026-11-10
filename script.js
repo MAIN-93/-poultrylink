@@ -996,7 +996,7 @@ sellBannerButton?.addEventListener(
 
 
 // ============================================
-// SELLER VERIFICATION
+// SELLER VERIFICATION / APPLICATION
 // ============================================
 
 async function openSellerVerification() {
@@ -1012,10 +1012,20 @@ async function openSellerVerification() {
 
   sellerVerificationForm?.reset();
 
-  sellerVerificationMessage.textContent = "";
+  showMessage(
+    sellerVerificationMessage,
+    ""
+  );
 
-  identityVerificationStatus.textContent =
-    "Not started";
+
+  // MANUAL ADMIN REVIEW
+
+  if (identityVerificationStatus) {
+
+    identityVerificationStatus.textContent =
+      "Pending admin review";
+
+  }
 
 
   // PREFILL USER INFORMATION
@@ -1026,12 +1036,14 @@ async function openSellerVerification() {
   const emailInput =
     $("verificationEmail");
 
+
   if (nameInput) {
 
     nameInput.value =
       currentUser.displayName || "";
 
   }
+
 
   if (emailInput) {
 
@@ -1041,49 +1053,121 @@ async function openSellerVerification() {
   }
 
 
+  // LOAD EXISTING APPLICATION DATA
+
   const existing =
     await getSellerProfile();
 
+
   if (existing) {
 
-    $("verificationFullName").value =
-      existing.fullName || "";
+    if ($("verificationFullName")) {
 
-    $("verificationPhone").value =
-      existing.phone || "";
+      $("verificationFullName").value =
+        existing.fullName || "";
 
-    $("verificationEmail").value =
-      existing.email ||
-      currentUser.email ||
-      "";
+    }
 
-    $("verificationState").value =
-      existing.state || "";
 
-    $("verificationCity").value =
-      existing.city || "";
+    if ($("verificationPhone")) {
 
-    $("verificationBusinessName").value =
-      existing.businessName || "";
+      $("verificationPhone").value =
+        existing.phone || "";
 
-    $("verificationExperience").value =
-      existing.experience || "";
+    }
 
-    $("verificationAddress").value =
-      existing.address || "";
 
-    $("verificationProducts").value =
-      existing.products || "";
+    if ($("verificationEmail")) {
 
-    $("verificationDescription").value =
-      existing.description || "";
+      $("verificationEmail").value =
+        existing.email ||
+        currentUser.email ||
+        "";
+
+    }
+
+
+    if ($("verificationState")) {
+
+      $("verificationState").value =
+        existing.state || "";
+
+    }
+
+
+    if ($("verificationCity")) {
+
+      $("verificationCity").value =
+        existing.city || "";
+
+    }
+
+
+    if ($("verificationBusinessName")) {
+
+      $("verificationBusinessName").value =
+        existing.businessName || "";
+
+    }
+
+
+    if ($("verificationExperience")) {
+
+      $("verificationExperience").value =
+        existing.experience || "";
+
+    }
+
+
+    if ($("verificationAddress")) {
+
+      $("verificationAddress").value =
+        existing.address || "";
+
+    }
+
+
+    if ($("verificationProducts")) {
+
+      $("verificationProducts").value =
+        existing.products || "";
+
+    }
+
+
+    if ($("verificationDescription")) {
+
+      $("verificationDescription").value =
+        existing.description || "";
+
+    }
+
+
+    // SHOW CURRENT STATUS
 
     if (
-      existing.identityStatus
+      identityVerificationStatus &&
+      existing.status === "approved"
     ) {
 
       identityVerificationStatus.textContent =
-        existing.identityStatus;
+        "Seller approved";
+
+    } else if (
+      identityVerificationStatus &&
+      existing.status === "pending"
+    ) {
+
+      identityVerificationStatus.textContent =
+        "Pending admin review";
+
+    } else if (
+      identityVerificationStatus &&
+      existing.status === "rejected"
+    ) {
+
+      identityVerificationStatus.textContent =
+        "Application needs attention";
 
     }
 
@@ -1097,30 +1181,46 @@ async function openSellerVerification() {
 }
 
 
-// IDENTITY VERIFICATION PLACEHOLDER
+// ============================================
+// MANUAL VERIFICATION INFORMATION BUTTON
+// ============================================
 
 startIdentityVerification?.addEventListener(
   "click",
   () => {
 
-    identityVerificationStatus.textContent =
-      "Verification provider not connected yet";
+    if (identityVerificationStatus) {
+
+      identityVerificationStatus.textContent =
+        "Pending admin review";
+
+    }
+
+
+    showMessage(
+      sellerVerificationMessage,
+      "Complete the form and submit your application. A PoultryLink administrator will review your seller information before approval."
+    );
+
 
     showToast(
-      "Identity verification integration will be connected to a secure provider."
+      "Complete your application and submit it for review."
     );
 
   }
 );
 
 
+// ============================================
 // SUBMIT SELLER APPLICATION
+// ============================================
 
 sellerVerificationForm?.addEventListener(
   "submit",
   async (event) => {
 
     event.preventDefault();
+
 
     if (!currentUser) {
 
@@ -1136,11 +1236,15 @@ sellerVerificationForm?.addEventListener(
     const consent =
       $("verificationConsent");
 
-    if (!consent.checked) {
+
+    if (
+      !consent ||
+      !consent.checked
+    ) {
 
       showMessage(
         sellerVerificationMessage,
-        "You must confirm that your information is correct.",
+        "You must confirm that your information is correct before submitting.",
         "error"
       );
 
@@ -1151,83 +1255,100 @@ sellerVerificationForm?.addEventListener(
 
     submitVerificationButton.disabled = true;
 
+
     showMessage(
       sellerVerificationMessage,
-      "Submitting your application..."
+      "Submitting your seller application..."
     );
 
 
     try {
 
-      const data = {
+      const existingSeller =
+        await getSellerProfile();
+
+
+      const sellerData = {
 
         uid:
           currentUser.uid,
 
         fullName:
           $("verificationFullName")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
 
         phone:
           $("verificationPhone")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
 
         email:
           $("verificationEmail")
-            .value
-            .trim(),
+            ?.value
+            .trim() ||
+          currentUser.email ||
+          "",
 
         state:
           $("verificationState")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
 
         city:
           $("verificationCity")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
 
         businessName:
           $("verificationBusinessName")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
 
         experience:
           $("verificationExperience")
-            .value,
+            ?.value || "",
 
         address:
           $("verificationAddress")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
 
         products:
           $("verificationProducts")
-            .value,
+            ?.value || "",
 
         description:
           $("verificationDescription")
-            .value
-            .trim(),
+            ?.value
+            .trim() || "",
+
+
+        // MANUAL REVIEW STATUS
 
         identityStatus:
-          identityVerificationStatus
-            .textContent
-            .trim(),
+          "Pending admin review",
 
         status:
           "pending",
 
         updatedAt:
-          serverTimestamp(),
-
-        submittedAt:
           serverTimestamp()
 
       };
 
+
+      // KEEP ORIGINAL SUBMISSION DATE
+
+      if (!existingSeller?.submittedAt) {
+
+        sellerData.submittedAt =
+          serverTimestamp();
+
+      }
+
+
+      // SAVE SELLER APPLICATION
 
       await setDoc(
         doc(
@@ -1235,12 +1356,14 @@ sellerVerificationForm?.addEventListener(
           "sellers",
           currentUser.uid
         ),
-        data,
+        sellerData,
         {
           merge: true
         }
       );
 
+
+      // UPDATE USER ROLE
 
       await setDoc(
         doc(
@@ -1249,8 +1372,24 @@ sellerVerificationForm?.addEventListener(
           currentUser.uid
         ),
         {
+          uid:
+            currentUser.uid,
+
+          name:
+            currentUser.displayName ||
+            sellerData.fullName,
+
+          email:
+            currentUser.email || "",
+
           role:
-            "seller-pending"
+            "seller-pending",
+
+          sellerStatus:
+            "pending",
+
+          updatedAt:
+            serverTimestamp()
         },
         {
           merge: true
@@ -1258,16 +1397,27 @@ sellerVerificationForm?.addEventListener(
       );
 
 
+      if (identityVerificationStatus) {
+
+        identityVerificationStatus.textContent =
+          "Pending admin review";
+
+      }
+
+
       showMessage(
         sellerVerificationMessage,
-        "Application submitted successfully. Please wait for admin review.",
+        "Your seller application has been submitted successfully. Please wait for an administrator to review and approve your application.",
         "success"
       );
 
+
       showToast(
-        "Seller application submitted!"
+        "Seller application submitted successfully!"
       );
 
+
+      // CLOSE MODAL AFTER SUCCESS
 
       setTimeout(
         () => {
@@ -1277,17 +1427,26 @@ sellerVerificationForm?.addEventListener(
           );
 
         },
-        1200
+        1500
       );
 
     } catch (error) {
 
-      console.error(error);
+      console.error(
+        "Seller application error:",
+        error
+      );
+
 
       showMessage(
         sellerVerificationMessage,
         "Could not submit your application. Please try again.",
         "error"
+      );
+
+
+      showToast(
+        "Application submission failed."
       );
 
     } finally {
