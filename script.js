@@ -1,3837 +1,2700 @@
-// ============================================
-// POULTRYLINK - COMPLETE script.js
-// ============================================
+// ============================================================
+// POULTRYLINK — COMPLETE FIREBASE JAVASCRIPT
+// ============================================================
 
-// ---------------- FIREBASE IMPORTS ----------------
 
-import {
-  initializeApp
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+// ============================================================
+// 1. FIREBASE IMPORTS
+// ============================================================
 
-import {
-  getAuth,
-  onAuthStateChanged,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  updateProfile
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { initializeApp } from
+    "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 
 import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs,
-  getDoc,
-  doc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  Timestamp
-} from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+    getAuth,
+    onAuthStateChanged,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut,
+    updateProfile
+} from
+    "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+
+import {
+    getFirestore,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    addDoc,
+    setDoc,
+    updateDoc,
+    deleteDoc,
+    query,
+    where,
+    orderBy,
+    limit,
+    serverTimestamp
+} from
+    "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 
 
-// ============================================
-// FIREBASE CONFIG
-// ============================================
+// ============================================================
+// 2. FIREBASE CONFIGURATION
+// ============================================================
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDUBwgGhDHj-v6kBE5Dn3O_FxF8EfPPfy4",
-  authDomain: "poultrylink-2459a.firebaseapp.com",
-  projectId: "poultrylink-2459a",
-  storageBucket: "poultrylink-2459a.firebasestorage.app",
-  messagingSenderId: "332920290687",
-  appId: "1:332920290687:web:3e71c648817e1c07ba6e4a"
+    apiKey: "AIzaSyDUBwgGhDHj-v6kBE5Dn3O_FxF8EfPPfy4",
+    authDomain: "poultrylink-2459a.firebaseapp.com",
+    projectId: "poultrylink-2459a",
+    storageBucket: "poultrylink-2459a.firebasestorage.app",
+    messagingSenderId: "332920290687",
+    appId: "1:332920290687:web:3e71c648817e1c07ba6e4a"
 };
 
-
-// ============================================
-// INITIALIZE FIREBASE
-// ============================================
-
 const app = initializeApp(firebaseConfig);
+
 const auth = getAuth(app);
+
 const db = getFirestore(app);
 
 
-// ============================================
-// ADMIN SETTINGS
-// ============================================
+// ============================================================
+// 3. CONFIGURATION
+// ============================================================
 
 const ADMIN_EMAIL = "ajmaine93@gmail.com";
 
-
-// ============================================
-// APPLICATION STATE
-// ============================================
+const USERS_COLLECTION = "users";
+const SELLERS_COLLECTION = "sellers";
+const PRODUCTS_COLLECTION = "products";
 
 let currentUser = null;
-let allListings = [];
-let cart = JSON.parse(localStorage.getItem("poultrylinkCart") || "[]");
+let currentUserData = null;
 
-let activeCategory = "";
-let activeSearch = "";
-let activeLocation = "";
-let activeSort = "newest";
+let products = [];
+let filteredProducts = [];
 
-let isSignUpMode = false;
-let currentSellerApplication = null;
+let isSignupMode = false;
+let currentDetailProduct = null;
+
+let cart = JSON.parse(
+    localStorage.getItem("poultrylink-cart") || "[]"
+);
 
 
-// ============================================
-// DOM ELEMENTS
-// ============================================
+// ============================================================
+// 4. HTML ELEMENT HELPER
+// ============================================================
 
 const $ = (id) => document.getElementById(id);
 
-
-// HEADER
-
-const signInButton = $("signInButton");
-const logoutButton = $("logoutButton");
-
-const sellHeaderButton = $("sellHeaderButton");
-const heroSellButton = $("heroSellButton");
-const sellBannerButton = $("sellBannerButton");
-
-const menuButton = $("menuButton");
-const desktopNav = $("desktopNav");
-
-
-// AUTH
-
-const authDialog = $("authDialog");
-const authForm = $("authForm");
-
-const authNameWrap = $("authNameWrap");
-const authName = $("authName");
-const authEmail = $("authEmail");
-const authPassword = $("authPassword");
-
-const authTitle = $("authTitle");
-const authSubtitle = $("authSubtitle");
-const authModeButton = $("authModeButton");
-const authSubmitButton = $("authSubmitButton");
-const authMessage = $("authMessage");
-
-
-// LISTINGS
-
-const listingDialog = $("listingDialog");
-const listingForm = $("listingForm");
-
-const editingListingId = $("editingListingId");
-
-const listingTitleInput = $("listingTitleInput");
-const listingCategory = $("listingCategory");
-const listingPrice = $("listingPrice");
-const listingQuantity = $("listingQuantity");
-const listingUnit = $("listingUnit");
-const listingState = $("listingState");
-const listingTown = $("listingTown");
-const listingSeller = $("listingSeller");
-const listingPhone = $("listingPhone");
-const listingDescription = $("listingDescription");
-
-const listingTitle = $("listingTitle");
-const saveListingButton = $("saveListingButton");
-const formMessage = $("formMessage");
-
-
-// MARKETPLACE
-
-const listingGrid = $("listingGrid");
-const resultsCount = $("resultsCount");
-const emptyState = $("emptyState");
-
-const searchForm = $("searchForm");
-const searchInput = $("searchInput");
-const categoryFilter = $("categoryFilter");
-const locationFilter = $("locationFilter");
-
-const clearFiltersButton = $("clearFiltersButton");
-const emptyClearButton = $("emptyClearButton");
-
-const categoryChips = $("categoryChips");
-const sortSelect = $("sortSelect");
-
-
-// CART
-
-const cartButton = $("cartButton");
-const cartCount = $("cartCount");
-
-const cartDialog = $("cartDialog");
-const cartItems = $("cartItems");
-const cartEmpty = $("cartEmpty");
-const cartSummary = $("cartSummary");
-const cartTotal = $("cartTotal");
-const cartContactButton = $("cartContactButton");
-
-
-// DASHBOARD
-
-const dashboardDialog = $("dashboardDialog");
-
-const dashboardKicker = $("dashboardKicker");
-const dashboardTitle = $("dashboardTitle");
-const dashboardSubtitle = $("dashboardSubtitle");
-
-const dashboardAvatar = $("dashboardAvatar");
-const dashboardName = $("dashboardName");
-const dashboardEmail = $("dashboardEmail");
-const dashboardRole = $("dashboardRole");
-
-const dashboardContent = $("dashboardContent");
-
-const dashboardBecomeSellerButton =
-  $("dashboardBecomeSellerButton");
-
-const dashboardSignOutButton =
-  $("dashboardSignOutButton");
-
-
-// SELLER VERIFICATION
-
-const sellerVerificationModal =
-  $("sellerVerificationModal");
-
-const sellerVerificationForm =
-  $("sellerVerificationForm");
-
-const sellerVerificationMessage =
-  $("sellerVerificationMessage");
-
-const submitVerificationButton =
-  $("submitVerificationButton");
-
-const startIdentityVerification =
-  $("startIdentityVerification");
-
-const identityVerificationStatus =
-  $("identityVerificationStatus");
-
-
-// ADMIN
-
-const adminDialog = $("adminDialog");
-
-const pendingSellerCount =
-  $("pendingSellerCount");
-
-const totalUserCount =
-  $("totalUserCount");
-
-const adminListingCount =
-  $("adminListingCount");
-
-const adminApplications =
-  $("adminApplications");
-
-const adminApplicationsEmpty =
-  $("adminApplicationsEmpty");
-
-const refreshAdminButton =
-  $("refreshAdminButton");
-
-
-// DETAILS
-
-const detailDialog = $("detailDialog");
-const detailContent = $("detailContent");
-
-
-// TOAST
-
-const toast = $("toast");
-
-
-// FOOTER
-
-const year = $("year");
-
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-function showToast(message) {
-
-  if (!toast) return;
-
-  toast.textContent = message;
-
-  toast.classList.add("show");
-
-  setTimeout(() => {
-
-    toast.classList.remove("show");
-
-  }, 3500);
-
-}
-
-
-function showMessage(element, message, type = "") {
-
-  if (!element) return;
-
-  element.textContent = message;
-
-  element.classList.remove(
-    "success",
-    "error"
-  );
-
-  if (type) {
-    element.classList.add(type);
-  }
-
-}
-
-
-function formatPrice(price) {
-
-  return new Intl.NumberFormat(
-    "en-NG",
-    {
-      style: "currency",
-      currency: "NGN",
-      maximumFractionDigits: 0
+function showElement(id) {
+    const element = $(id);
+
+    if (element) {
+        element.classList.remove("hidden");
     }
-  ).format(Number(price) || 0);
-
 }
 
+function hideElement(id) {
+    const element = $(id);
+
+    if (element) {
+        element.classList.add("hidden");
+    }
+}
+
+function setText(id, value) {
+    const element = $(id);
+
+    if (element) {
+        element.textContent = value ?? "";
+    }
+}
+
+function setMessage(id, message, type = "") {
+    const element = $(id);
+
+    if (!element) return;
+
+    element.textContent = message;
+    element.className = "form-message";
+
+    if (type) {
+        element.classList.add(type);
+    }
+}
+
+function openModal(id) {
+    const modal = $(id);
+
+    if (!modal) return;
+
+    if (typeof modal.showModal === "function") {
+        if (!modal.open) modal.showModal();
+    } else {
+        modal.setAttribute("open", "");
+    }
+}
+
+function closeModal(id) {
+    const modal = $(id);
+
+    if (!modal) return;
+
+    if (typeof modal.close === "function") {
+        modal.close();
+    } else {
+        modal.removeAttribute("open");
+    }
+}
+
+
+// ============================================================
+// 5. GENERAL HELPERS
+// ============================================================
 
 function escapeHTML(value = "") {
+    return String(value).replace(/[&<>"']/g, character => {
+        const characters = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#039;"
+        };
 
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-
+        return characters[character];
+    });
 }
 
 
-function formatDate(timestamp) {
-
-  if (!timestamp) {
-    return "Recently added";
-  }
-
-  let date;
-
-  if (timestamp instanceof Timestamp) {
-    date = timestamp.toDate();
-  } else if (timestamp.toDate) {
-    date = timestamp.toDate();
-  } else {
-    date = new Date(timestamp);
-  }
-
-  return date.toLocaleDateString(
-    "en-NG",
-    {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
-    }
-  );
-
+function formatMoney(amount) {
+    return "₦" + Number(amount || 0).toLocaleString("en-NG");
 }
 
 
-function isAdmin() {
+function normalizePhone(phone = "") {
+    let number = String(phone).replace(/\D/g, "");
 
-  return currentUser &&
-    currentUser.email &&
-    currentUser.email.toLowerCase() ===
-    ADMIN_EMAIL.toLowerCase();
-
-}
-
-
-function closeDialog(dialog) {
-
-  if (
-    dialog &&
-    dialog.open
-  ) {
-    dialog.close();
-  }
-
-}
-
-
-function openDialog(dialog) {
-
-  if (!dialog) return;
-
-  if (!dialog.open) {
-    dialog.showModal();
-  }
-
-}
-
-
-// ============================================
-// CLOSE MODALS
-// ============================================
-
-document.addEventListener(
-  "click",
-  (event) => {
-
-    const closeButton =
-      event.target.closest("[data-close]");
-
-    if (closeButton) {
-
-      const dialogId =
-        closeButton.dataset.close;
-
-      closeDialog(
-        document.getElementById(dialogId)
-      );
-
+    if (number.startsWith("0")) {
+        number = "234" + number.slice(1);
     }
 
-
-    const closeModalButton =
-      event.target.closest("[data-close-modal]");
-
-    if (closeModalButton) {
-
-      const dialogId =
-        closeModalButton.dataset.closeModal;
-
-      closeDialog(
-        document.getElementById(dialogId)
-      );
-
+    if (number.startsWith("234")) {
+        return number;
     }
 
-  }
-);
+    return number;
+}
 
 
-// CLOSE WHEN CLICKING BACKDROP
+function showToast(message) {
+    const toast = $("toast");
 
-document.querySelectorAll("dialog").forEach(
-  (dialog) => {
+    if (!toast) return;
 
-    dialog.addEventListener(
-      "click",
-      (event) => {
+    toast.textContent = message;
+    toast.classList.add("show");
 
-        if (
-          event.target === dialog
-        ) {
-          dialog.close();
-        }
+    clearTimeout(showToast.timer);
 
-      }
+    showToast.timer = setTimeout(() => {
+        toast.classList.remove("show");
+    }, 3500);
+}
+
+
+function getFriendlyError(error) {
+    const messages = {
+        "auth/email-already-in-use":
+            "This email already has an account.",
+
+        "auth/invalid-email":
+            "Please enter a valid email address.",
+
+        "auth/weak-password":
+            "Your password must contain at least 6 characters.",
+
+        "auth/invalid-credential":
+            "Incorrect email or password.",
+
+        "auth/user-not-found":
+            "No account was found with this email.",
+
+        "auth/wrong-password":
+            "Incorrect password.",
+
+        "permission-denied":
+            "You do not have permission to perform this action."
+    };
+
+    return messages[error.code] ||
+        error.message ||
+        "Something went wrong. Please try again.";
+}
+
+
+function saveCart() {
+    localStorage.setItem(
+        "poultrylink-cart",
+        JSON.stringify(cart)
     );
 
-  }
-);
-
-
-// ============================================
-// AUTHENTICATION
-// ============================================
-
-function openAuthDialog(signUp = false) {
-
-  isSignUpMode = signUp;
-
-  showMessage(authMessage, "");
-
-  authForm.reset();
-
-  updateAuthMode();
-
-  openDialog(authDialog);
-
+    updateCartDisplay();
 }
 
+
+// ============================================================
+// 6. MODAL CLOSE BUTTONS
+// ============================================================
+
+document.addEventListener("click", event => {
+
+    const closeButton = event.target.closest(
+        "[data-close], [data-close-modal]"
+    );
+
+    if (!closeButton) return;
+
+    const modalId =
+        closeButton.dataset.close ||
+        closeButton.dataset.closeModal;
+
+    if (modalId) {
+        closeModal(modalId);
+    }
+
+});
+
+
+// ============================================================
+// 7. MOBILE NAVIGATION
+// ============================================================
+
+$("menuButton")?.addEventListener("click", () => {
+
+    $("desktopNav")?.classList.toggle("active");
+
+});
+
+
+// ============================================================
+// 8. AUTHENTICATION MODE
+// ============================================================
 
 function updateAuthMode() {
 
-  if (isSignUpMode) {
+    setText(
+        "authTitle",
+        isSignupMode ? "Create Account" : "Sign In"
+    );
 
-    authTitle.textContent =
-      "Create your account";
+    setText(
+        "authDescription",
+        isSignupMode
+            ? "Create your PoultryLink account."
+            : "Welcome back to PoultryLink."
+    );
 
-    authSubtitle.textContent =
-      "Join PoultryLink to buy, sell and manage your marketplace activity.";
+    setText(
+        "authSubmitButton",
+        isSignupMode ? "Create Account" : "Sign In"
+    );
 
-    authNameWrap.classList.remove("hidden");
+    setText(
+        "authSwitchText",
+        isSignupMode
+            ? "Already have an account?"
+            : "Don't have an account?"
+    );
 
-    authName.required = true;
+    setText(
+        "authModeButton",
+        isSignupMode ? "Sign in" : "Create account"
+    );
 
-    authModeButton.textContent =
-      "I already have an account";
+    if (isSignupMode) {
+        showElement("authNameWrap");
+        $("authName").required = true;
+    } else {
+        hideElement("authNameWrap");
+        $("authName").required = false;
+    }
 
-    authSubmitButton.textContent =
-      "Create account";
-
-    authPassword.autocomplete =
-      "new-password";
-
-  } else {
-
-    authTitle.textContent =
-      "Welcome to PoultryLink";
-
-    authSubtitle.textContent =
-      "Sign in to access your account.";
-
-    authNameWrap.classList.add("hidden");
-
-    authName.required = false;
-
-    authModeButton.textContent =
-      "Create account";
-
-    authSubmitButton.textContent =
-      "Sign in";
-
-    authPassword.autocomplete =
-      "current-password";
-
-  }
-
+    setMessage("authMessage", "");
 }
 
 
-authModeButton?.addEventListener(
-  "click",
-  () => {
+$("authModeButton")?.addEventListener("click", () => {
 
-    isSignUpMode = !isSignUpMode;
+    isSignupMode = !isSignupMode;
 
     updateAuthMode();
 
-    showMessage(authMessage, "");
-
-  }
-);
+});
 
 
-authForm?.addEventListener(
-  "submit",
-  async (event) => {
+// ============================================================
+// 9. OPEN AUTHENTICATION
+// ============================================================
+
+$("signInButton")?.addEventListener("click", () => {
+
+    if (currentUser) {
+        openDashboard();
+        return;
+    }
+
+    isSignupMode = false;
+
+    updateAuthMode();
+
+    openModal("authDialog");
+
+});
+
+
+// ============================================================
+// 10. REGISTER AND LOGIN
+// ============================================================
+
+$("authForm")?.addEventListener("submit", async event => {
 
     event.preventDefault();
 
-    const email =
-      authEmail.value.trim();
+    const email = $("authEmail").value.trim();
 
-    const password =
-      authPassword.value;
+    const password = $("authPassword").value;
 
-    const name =
-      authName.value.trim();
+    const name = $("authName").value.trim();
 
-    showMessage(
-      authMessage,
-      "Please wait..."
-    );
+    const button = $("authSubmitButton");
 
-    authSubmitButton.disabled = true;
+    button.disabled = true;
 
-    try {
+    button.textContent = "Please wait...";
 
-      if (isSignUpMode) {
-
-        if (name.length < 2) {
-
-          throw new Error(
-            "Please enter your name."
-          );
-
-        }
-
-        const credential =
-          await createUserWithEmailAndPassword(
-            auth,
-            email,
-            password
-          );
-
-        await updateProfile(
-          credential.user,
-          {
-            displayName: name
-          }
-        );
-
-
-        // CREATE USER PROFILE
-
-        await setDoc(
-          doc(
-            db,
-            "users",
-            credential.user.uid
-          ),
-          {
-            uid:
-              credential.user.uid,
-
-            name,
-
-            email,
-
-            role: "buyer",
-
-            createdAt:
-              serverTimestamp()
-          },
-          {
-            merge: true
-          }
-        );
-
-
-        showMessage(
-          authMessage,
-          "Account created successfully!",
-          "success"
-        );
-
-        showToast(
-          "Welcome to PoultryLink!"
-        );
-
-
-        setTimeout(
-          () => {
-
-            closeDialog(authDialog);
-
-          },
-          700
-        );
-
-      } else {
-
-        await signInWithEmailAndPassword(
-          auth,
-          email,
-          password
-        );
-
-        showToast(
-          "Signed in successfully."
-        );
-
-        closeDialog(authDialog);
-
-      }
-
-    } catch (error) {
-
-      console.error(error);
-
-      showMessage(
-        authMessage,
-        getFirebaseErrorMessage(error),
-        "error"
-      );
-
-    } finally {
-
-      authSubmitButton.disabled = false;
-
-    }
-
-  }
-);
-
-
-function getFirebaseErrorMessage(error) {
-
-  const code = error?.code || "";
-
-  const messages = {
-
-    "auth/email-already-in-use":
-      "This email is already registered.",
-
-    "auth/invalid-email":
-      "Please enter a valid email address.",
-
-    "auth/weak-password":
-      "Password should contain at least 6 characters.",
-
-    "auth/invalid-credential":
-      "Incorrect email or password.",
-
-    "auth/user-not-found":
-      "No account was found with this email.",
-
-    "auth/wrong-password":
-      "Incorrect email or password.",
-
-    "auth/too-many-requests":
-      "Too many attempts. Please try again later."
-
-  };
-
-  return messages[code] ||
-    error?.message ||
-    "Something went wrong. Please try again.";
-
-}
-
-
-// ============================================
-// AUTH STATE
-// ============================================
-
-onAuthStateChanged(
-  auth,
-  async (user) => {
-
-    currentUser = user;
-
-    updateHeaderAuthState();
-
-    if (user) {
-
-      // ENSURE USER PROFILE EXISTS
-
-      try {
-
-        await setDoc(
-          doc(db, "users", user.uid),
-          {
-            uid: user.uid,
-            name:
-              user.displayName ||
-              "PoultryLink User",
-            email:
-              user.email || "",
-            lastLogin:
-              serverTimestamp()
-          },
-          {
-            merge: true
-          }
-        );
-
-      } catch (error) {
-
-        console.warn(
-          "Could not update user profile:",
-          error
-        );
-
-      }
-
-    }
-
-    renderCart();
-
-  }
-);
-
-
-function updateHeaderAuthState() {
-
-  if (!currentUser) {
-
-    signInButton?.classList.remove("hidden");
-
-    logoutButton?.classList.add("hidden");
-
-    signInButton.textContent =
-      "Sign in";
-
-    return;
-
-  }
-
-
-  signInButton?.classList.remove("hidden");
-
-  logoutButton?.classList.remove("hidden");
-
-
-  if (isAdmin()) {
-
-    signInButton.textContent =
-      "Admin";
-
-  } else {
-
-    signInButton.textContent =
-      "My account";
-
-  }
-
-}
-
-
-// ============================================
-// SIGN IN / ACCOUNT BUTTON
-// ============================================
-
-signInButton?.addEventListener(
-  "click",
-  async () => {
-
-    if (!currentUser) {
-
-      openAuthDialog(false);
-
-      return;
-
-    }
-
-
-    if (isAdmin()) {
-
-      await loadAdminDashboard();
-
-      openDialog(adminDialog);
-
-      return;
-
-    }
-
-
-    await openDashboard();
-
-  }
-);
-
-
-// ============================================
-// LOGOUT
-// ============================================
-
-async function logoutUser() {
-
-  try {
-
-    await signOut(auth);
-
-    closeDialog(dashboardDialog);
-
-    closeDialog(adminDialog);
-
-    showToast(
-      "You have been signed out."
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Could not sign out. Please try again."
-    );
-
-  }
-
-}
-
-
-logoutButton?.addEventListener(
-  "click",
-  logoutUser
-);
-
-dashboardSignOutButton?.addEventListener(
-  "click",
-  logoutUser
-);
-
-
-// ============================================
-// SELLER STATUS
-// ============================================
-
-async function getSellerProfile(uid = null) {
-
-  const userId =
-    uid || currentUser?.uid;
-
-  if (!userId) return null;
-
-  try {
-
-    const sellerDoc =
-      await getDoc(
-        doc(db, "sellers", userId)
-      );
-
-    if (!sellerDoc.exists()) {
-      return null;
-    }
-
-    return {
-      id: sellerDoc.id,
-      ...sellerDoc.data()
-    };
-
-  } catch (error) {
-
-    console.error(
-      "Error getting seller profile:",
-      error
-    );
-
-    return null;
-
-  }
-
-}
-
-
-async function isApprovedSeller() {
-
-  if (!currentUser) {
-    return false;
-  }
-
-  if (isAdmin()) {
-    return true;
-  }
-
-  const seller =
-    await getSellerProfile();
-
-  return seller?.status === "approved";
-
-}
-
-
-// ============================================
-// SELL BUTTONS
-// ============================================
-
-async function handleSellRequest() {
-
-  if (!currentUser) {
-
-    openAuthDialog(true);
-
-    showToast(
-      "Create an account or sign in to become a seller."
-    );
-
-    return;
-
-  }
-
-
-  if (isAdmin()) {
-
-    openListingDialog();
-
-    return;
-
-  }
-
-
-  const seller =
-    await getSellerProfile();
-
-  if (
-    seller &&
-    seller.status === "approved"
-  ) {
-
-    openListingDialog();
-
-    return;
-
-  }
-
-
-  if (
-    seller &&
-    seller.status === "pending"
-  ) {
-
-    showToast(
-      "Your seller application is still being reviewed."
-    );
-
-    return;
-
-  }
-
-
-  openSellerVerification();
-
-}
-
-
-sellHeaderButton?.addEventListener(
-  "click",
-  handleSellRequest
-);
-
-heroSellButton?.addEventListener(
-  "click",
-  handleSellRequest
-);
-
-sellBannerButton?.addEventListener(
-  "click",
-  handleSellRequest
-);
-
-
-// ============================================
-// SELLER VERIFICATION / APPLICATION
-// ============================================
-
-async function openSellerVerification() {
-
-  if (!currentUser) {
-
-    openAuthDialog(true);
-
-    return;
-
-  }
-
-
-  sellerVerificationForm?.reset();
-
-  showMessage(
-    sellerVerificationMessage,
-    ""
-  );
-
-
-  // MANUAL ADMIN REVIEW
-
-  if (identityVerificationStatus) {
-
-    identityVerificationStatus.textContent =
-      "Pending admin review";
-
-  }
-
-
-  // PREFILL USER INFORMATION
-
-  const nameInput =
-    $("verificationFullName");
-
-  const emailInput =
-    $("verificationEmail");
-
-
-  if (nameInput) {
-
-    nameInput.value =
-      currentUser.displayName || "";
-
-  }
-
-
-  if (emailInput) {
-
-    emailInput.value =
-      currentUser.email || "";
-
-  }
-
-
-  // LOAD EXISTING APPLICATION DATA
-
-  const existing =
-    await getSellerProfile();
-
-
-  if (existing) {
-
-    if ($("verificationFullName")) {
-
-      $("verificationFullName").value =
-        existing.fullName || "";
-
-    }
-
-
-    if ($("verificationPhone")) {
-
-      $("verificationPhone").value =
-        existing.phone || "";
-
-    }
-
-
-    if ($("verificationEmail")) {
-
-      $("verificationEmail").value =
-        existing.email ||
-        currentUser.email ||
-        "";
-
-    }
-
-
-    if ($("verificationState")) {
-
-      $("verificationState").value =
-        existing.state || "";
-
-    }
-
-
-    if ($("verificationCity")) {
-
-      $("verificationCity").value =
-        existing.city || "";
-
-    }
-
-
-    if ($("verificationBusinessName")) {
-
-      $("verificationBusinessName").value =
-        existing.businessName || "";
-
-    }
-
-
-    if ($("verificationExperience")) {
-
-      $("verificationExperience").value =
-        existing.experience || "";
-
-    }
-
-
-    if ($("verificationAddress")) {
-
-      $("verificationAddress").value =
-        existing.address || "";
-
-    }
-
-
-    if ($("verificationProducts")) {
-
-      $("verificationProducts").value =
-        existing.products || "";
-
-    }
-
-
-    if ($("verificationDescription")) {
-
-      $("verificationDescription").value =
-        existing.description || "";
-
-    }
-
-
-    // SHOW CURRENT STATUS
-
-    if (
-      identityVerificationStatus &&
-      existing.status === "approved"
-    ) {
-
-      identityVerificationStatus.textContent =
-        "Seller approved";
-
-    } else if (
-      identityVerificationStatus &&
-      existing.status === "pending"
-    ) {
-
-      identityVerificationStatus.textContent =
-        "Pending admin review";
-
-    } else if (
-      identityVerificationStatus &&
-      existing.status === "rejected"
-    ) {
-
-      identityVerificationStatus.textContent =
-        "Application needs attention";
-
-    }
-
-  }
-
-
-  openDialog(
-    sellerVerificationModal
-  );
-
-}
-
-
-// ============================================
-// MANUAL VERIFICATION INFORMATION BUTTON
-// ============================================
-
-startIdentityVerification?.addEventListener(
-  "click",
-  () => {
-
-    if (identityVerificationStatus) {
-
-      identityVerificationStatus.textContent =
-        "Pending admin review";
-
-    }
-
-
-    showMessage(
-      sellerVerificationMessage,
-      "Complete the form and submit your application. A PoultryLink administrator will review your seller information before approval."
-    );
-
-
-    showToast(
-      "Complete your application and submit it for review."
-    );
-
-  }
-);
-
-
-// ============================================
-// SUBMIT SELLER APPLICATION
-// ============================================
-
-sellerVerificationForm?.addEventListener(
-  "submit",
-  async (event) => {
-
-    event.preventDefault();
-
-
-    if (!currentUser) {
-
-      showToast(
-        "Please sign in first."
-      );
-
-      return;
-
-    }
-
-
-    const consent =
-      $("verificationConsent");
-
-
-    if (
-      !consent ||
-      !consent.checked
-    ) {
-
-      showMessage(
-        sellerVerificationMessage,
-        "You must confirm that your information is correct before submitting.",
-        "error"
-      );
-
-      return;
-
-    }
-
-
-    submitVerificationButton.disabled = true;
-
-
-    showMessage(
-      sellerVerificationMessage,
-      "Submitting your seller application..."
-    );
+    setMessage("authMessage", "");
 
 
     try {
 
-      const existingSeller =
-        await getSellerProfile();
+        if (isSignupMode) {
 
+            if (!name) {
+                throw new Error("Please enter your full name.");
+            }
 
-      const sellerData = {
+            const result = await createUserWithEmailAndPassword(
+                auth,
+                email,
+                password
+            );
 
-        uid:
-          currentUser.uid,
+            await updateProfile(result.user, {
+                displayName: name
+            });
 
-        fullName:
-          $("verificationFullName")
-            ?.value
-            .trim() || "",
+            await setDoc(
+                doc(db, USERS_COLLECTION, result.user.uid),
+                {
+                    uid: result.user.uid,
+                    name,
+                    email,
+                    role: "buyer",
+                    createdAt: serverTimestamp()
+                }
+            );
 
-        phone:
-          $("verificationPhone")
-            ?.value
-            .trim() || "",
+            showToast("Account created successfully.");
 
-        email:
-          $("verificationEmail")
-            ?.value
-            .trim() ||
-          currentUser.email ||
-          "",
+        } else {
 
-        state:
-          $("verificationState")
-            ?.value
-            .trim() || "",
+            await signInWithEmailAndPassword(
+                auth,
+                email,
+                password
+            );
 
-        city:
-          $("verificationCity")
-            ?.value
-            .trim() || "",
+            showToast("Welcome back!");
 
-        businessName:
-          $("verificationBusinessName")
-            ?.value
-            .trim() || "",
-
-        experience:
-          $("verificationExperience")
-            ?.value || "",
-
-        address:
-          $("verificationAddress")
-            ?.value
-            .trim() || "",
-
-        products:
-          $("verificationProducts")
-            ?.value || "",
-
-        description:
-          $("verificationDescription")
-            ?.value
-            .trim() || "",
-
-
-        // MANUAL REVIEW STATUS
-
-        identityStatus:
-          "Pending admin review",
-
-        status:
-          "pending",
-
-        updatedAt:
-          serverTimestamp()
-
-      };
-
-
-      // KEEP ORIGINAL SUBMISSION DATE
-
-      if (!existingSeller?.submittedAt) {
-
-        sellerData.submittedAt =
-          serverTimestamp();
-
-      }
-
-
-      // SAVE SELLER APPLICATION
-
-      await setDoc(
-        doc(
-          db,
-          "sellers",
-          currentUser.uid
-        ),
-        sellerData,
-        {
-          merge: true
         }
-      );
 
+        closeModal("authDialog");
 
-      // UPDATE USER ROLE
-
-      await setDoc(
-        doc(
-          db,
-          "users",
-          currentUser.uid
-        ),
-        {
-          uid:
-            currentUser.uid,
-
-          name:
-            currentUser.displayName ||
-            sellerData.fullName,
-
-          email:
-            currentUser.email || "",
-
-          role:
-            "seller-pending",
-
-          sellerStatus:
-            "pending",
-
-          updatedAt:
-            serverTimestamp()
-        },
-        {
-          merge: true
-        }
-      );
-
-
-      if (identityVerificationStatus) {
-
-        identityVerificationStatus.textContent =
-          "Pending admin review";
-
-      }
-
-
-      showMessage(
-        sellerVerificationMessage,
-        "Your seller application has been submitted successfully. Please wait for an administrator to review and approve your application.",
-        "success"
-      );
-
-
-      showToast(
-        "Seller application submitted successfully!"
-      );
-
-
-      // CLOSE MODAL AFTER SUCCESS
-
-      setTimeout(
-        () => {
-
-          closeDialog(
-            sellerVerificationModal
-          );
-
-        },
-        1500
-      );
+        $("authForm").reset();
 
     } catch (error) {
 
-      console.error(
-        "Seller application error:",
-        error
-      );
-
-
-      showMessage(
-        sellerVerificationMessage,
-        "Could not submit your application. Please try again.",
-        "error"
-      );
-
-
-      showToast(
-        "Application submission failed."
-      );
+        setMessage(
+            "authMessage",
+            getFriendlyError(error),
+            "error"
+        );
 
     } finally {
 
-      submitVerificationButton.disabled =
-        false;
+        button.disabled = false;
+
+        button.textContent =
+            isSignupMode ? "Create Account" : "Sign In";
 
     }
 
-  }
-);
+});
 
 
-// ============================================
-// DASHBOARD
-// ============================================
+// ============================================================
+// 11. USER PROFILE
+// ============================================================
 
-async function openDashboard() {
+async function loadUserData(user) {
 
-  if (!currentUser) {
+    const userRef = doc(
+        db,
+        USERS_COLLECTION,
+        user.uid
+    );
 
-    openAuthDialog(false);
+    const userSnapshot = await getDoc(userRef);
 
-    return;
+    if (userSnapshot.exists()) {
 
-  }
-
-
-  const seller =
-    await getSellerProfile();
-
-
-  const name =
-    currentUser.displayName ||
-    "PoultryLink User";
-
-
-  dashboardName.textContent =
-    name;
-
-  dashboardEmail.textContent =
-    currentUser.email || "";
-
-
-  dashboardAvatar.textContent =
-    name.charAt(0).toUpperCase();
-
-
-  dashboardKicker.textContent =
-    "MY ACCOUNT";
-
-  dashboardTitle.textContent =
-    "My PoultryLink account";
-
-
-  if (
-    seller?.status === "approved"
-  ) {
-
-    dashboardRole.textContent =
-      "Verified Seller";
-
-    dashboardSubtitle.textContent =
-      "Manage your seller activity and listings.";
-
-    dashboardBecomeSellerButton.textContent =
-      "List a product";
-
-  } else if (
-    seller?.status === "pending"
-  ) {
-
-    dashboardRole.textContent =
-      "Seller application pending";
-
-    dashboardSubtitle.textContent =
-      "Your seller verification is being reviewed.";
-
-    dashboardBecomeSellerButton.textContent =
-      "Application pending";
-
-  } else {
-
-    dashboardRole.textContent =
-      "Buyer";
-
-    dashboardSubtitle.textContent =
-      "Manage your account and marketplace activity.";
-
-    dashboardBecomeSellerButton.textContent =
-      "Become a seller";
-
-  }
-
-
-  await renderDashboardContent(
-    seller
-  );
-
-
-  openDialog(
-    dashboardDialog
-  );
-
-}
-
-
-async function renderDashboardContent(
-  seller
-) {
-
-  if (!dashboardContent) return;
-
-
-  if (
-    seller?.status === "approved"
-  ) {
-
-    const myListings =
-      allListings.filter(
-        listing =>
-          listing.ownerId ===
-          currentUser.uid
-      );
-
-
-    dashboardContent.innerHTML = `
-
-      <div class="dashboard-section">
-
-        <div class="dashboard-section-heading">
-
-          <div>
-            <span class="section-kicker">
-              MY LISTINGS
-            </span>
-
-            <h3>
-              Your products
-            </h3>
-          </div>
-
-          <button
-            class="btn btn-primary"
-            id="dashboardNewListingButton"
-            type="button"
-          >
-            ＋ New listing
-          </button>
-
-        </div>
-
-        <div class="dashboard-listings">
-
-          ${
-            myListings.length
-              ? myListings.map(
-                  dashboardListingHTML
-                ).join("")
-              : `
-                <div class="admin-empty">
-                  You have not published any listings yet.
-                </div>
-              `
-          }
-
-        </div>
-
-      </div>
-
-    `;
-
-
-    $("dashboardNewListingButton")
-      ?.addEventListener(
-        "click",
-        () => {
-
-          closeDialog(
-            dashboardDialog
-          );
-
-          openListingDialog();
-
-        }
-      );
-
-
-    dashboardContent
-      .querySelectorAll(
-        "[data-edit-listing]"
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            "click",
-            () => {
-
-              const id =
-                button.dataset.editListing;
-
-              const listing =
-                allListings.find(
-                  item =>
-                    item.id === id
-                );
-
-              if (listing) {
-
-                closeDialog(
-                  dashboardDialog
-                );
-
-                openListingDialog(
-                  listing
-                );
-
-              }
-
-            }
-          );
-
-        }
-      );
-
-
-    dashboardContent
-      .querySelectorAll(
-        "[data-delete-listing]"
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            "click",
-            async () => {
-
-              const id =
-                button.dataset.deleteListing;
-
-              await deleteListing(id);
-
-              await openDashboard();
-
-            }
-          );
-
-        }
-      );
-
-  } else if (
-    seller?.status === "pending"
-  ) {
-
-    dashboardContent.innerHTML = `
-
-      <div class="dashboard-section">
-
-        <div class="status-card">
-
-          <h3>
-            Seller application submitted
-          </h3>
-
-          <p>
-            Your seller verification is currently pending review.
-            You will be able to publish products after approval.
-          </p>
-
-        </div>
-
-      </div>
-
-    `;
-
-  } else {
-
-    dashboardContent.innerHTML = `
-
-      <div class="dashboard-section">
-
-        <div class="status-card">
-
-          <h3>
-            Want to sell on PoultryLink?
-          </h3>
-
-          <p>
-            Apply for seller verification and publish your poultry
-            products after your application is approved.
-          </p>
-
-        </div>
-
-      </div>
-
-    `;
-
-  }
-
-}
-
-
-function dashboardListingHTML(
-  listing
-) {
-
-  return `
-
-    <article
-      class="dashboard-listing"
-    >
-
-      <div>
-
-        <strong>
-          ${escapeHTML(listing.title)}
-        </strong>
-
-        <p>
-          ${formatPrice(listing.price)}
-          ·
-          ${escapeHTML(listing.unit || "")}
-        </p>
-
-      </div>
-
-      <div
-        class="dashboard-listing-actions"
-      >
-
-        <button
-          class="text-button"
-          type="button"
-          data-edit-listing="${listing.id}"
-        >
-          Edit
-        </button>
-
-        <button
-          class="text-button"
-          type="button"
-          data-delete-listing="${listing.id}"
-        >
-          Delete
-        </button>
-
-      </div>
-
-    </article>
-
-  `;
-
-}
-
-
-dashboardBecomeSellerButton?.addEventListener(
-  async () => {
-
-    if (!currentUser) {
-
-      openAuthDialog(true);
-
-      return;
-
-    }
-
-
-    const seller =
-      await getSellerProfile();
-
-
-    if (
-      seller?.status === "approved"
-    ) {
-
-      closeDialog(
-        dashboardDialog
-      );
-
-      openListingDialog();
-
-    } else if (
-      seller?.status === "pending"
-    ) {
-
-      showToast(
-        "Your application is still pending review."
-      );
+        currentUserData = userSnapshot.data();
 
     } else {
 
-      closeDialog(
-        dashboardDialog
-      );
+        currentUserData = {
+            uid: user.uid,
+            name: user.displayName || "User",
+            email: user.email,
+            role: "buyer"
+        };
 
-      openSellerVerification();
-
-    }
-
-  }
-);
-
-
-// ============================================
-// LISTING DIALOG
-// ============================================
-
-async function openListingDialog(
-  listing = null
-) {
-
-  if (!currentUser) {
-
-    openAuthDialog(false);
-
-    return;
-
-  }
-
-
-  const approved =
-    await isApprovedSeller();
-
-
-  if (!approved) {
-
-    showToast(
-      "You must be an approved seller before publishing products."
-    );
-
-    openSellerVerification();
-
-    return;
-
-  }
-
-
-  listingForm.reset();
-
-  showMessage(
-    formMessage,
-    ""
-  );
-
-
-  if (listing) {
-
-    listingTitle.textContent =
-      "Edit listing";
-
-    saveListingButton.textContent =
-      "Save changes";
-
-    editingListingId.value =
-      listing.id;
-
-    listingTitleInput.value =
-      listing.title || "";
-
-    listingCategory.value =
-      listing.category || "";
-
-    listingPrice.value =
-      listing.price || "";
-
-    listingQuantity.value =
-      listing.quantity || "";
-
-    listingUnit.value =
-      listing.unit || "per unit";
-
-    listingState.value =
-      listing.state || "";
-
-    listingTown.value =
-      listing.town || "";
-
-    listingSeller.value =
-      listing.seller || "";
-
-    listingPhone.value =
-      listing.phone || "";
-
-    listingDescription.value =
-      listing.description || "";
-
-  } else {
-
-    listingTitle.textContent =
-      "List a product";
-
-    saveListingButton.textContent =
-      "Publish listing";
-
-    editingListingId.value = "";
-
-
-    const seller =
-      await getSellerProfile();
-
-
-    if (seller) {
-
-      listingSeller.value =
-        seller.businessName ||
-        seller.fullName ||
-        "";
-
-      listingState.value =
-        seller.state || "";
-
-      listingTown.value =
-        seller.city || "";
-
-      listingPhone.value =
-        seller.phone || "";
+        await setDoc(userRef, {
+            ...currentUserData,
+            createdAt: serverTimestamp()
+        });
 
     }
 
-  }
-
-
-  openDialog(
-    listingDialog
-  );
+    return currentUserData;
 
 }
 
 
-// ============================================
-// SAVE LISTING
-// ============================================
+// ============================================================
+// 12. AUTH STATE
+// ============================================================
 
-listingForm?.addEventListener(
-  "submit",
-  async (event) => {
+onAuthStateChanged(auth, async user => {
 
-    event.preventDefault();
+    currentUser = user;
+
+    if (user) {
+
+        try {
+
+            await loadUserData(user);
+
+            hideElement("signInButton");
+            showElement("logoutButton");
+
+            const name = currentUserData.name ||
+                user.displayName ||
+                "User";
+
+            setText("dashboardName", name);
+
+            setText("dashboardEmail", user.email);
+
+            setText(
+                "dashboardAvatar",
+                name.charAt(0).toUpperCase()
+            );
+
+        } catch (error) {
+
+            console.error("User profile error:", error);
+
+            showToast(
+                "Your account loaded, but your profile could not be retrieved."
+            );
+
+        }
+
+    } else {
+
+        currentUserData = null;
+
+        showElement("signInButton");
+        hideElement("logoutButton");
+
+    }
+
+    updateAccountButtons();
+
+    renderProducts();
+
+});
+
+
+// ============================================================
+// 13. ACCOUNT BUTTONS
+// ============================================================
+
+function updateAccountButtons() {
+
+    if (!currentUser) return;
+
+    const role = currentUserData?.role || "buyer";
+
+    const sellerStatus =
+        currentUserData?.sellerStatus || "";
+
+    const becomeSellerButton =
+        $("dashboardBecomeSellerButton");
+
+    if (becomeSellerButton) {
+
+        if (
+            role === "seller" ||
+            sellerStatus === "pending"
+        ) {
+            hideElement("dashboardBecomeSellerButton");
+        } else {
+            showElement("dashboardBecomeSellerButton");
+        }
+
+    }
+
+}
+
+
+// ============================================================
+// 14. LOGOUT
+// ============================================================
+
+async function logoutUser() {
+
+    try {
+
+        await signOut(auth);
+
+        closeModal("dashboardDialog");
+
+        closeModal("adminDialog");
+
+        showToast("You have signed out.");
+
+    } catch (error) {
+
+        showToast(getFriendlyError(error));
+
+    }
+
+}
+
+
+$("logoutButton")?.addEventListener(
+    "click",
+    logoutUser
+);
+
+$("dashboardSignOutButton")?.addEventListener(
+    "click",
+    logoutUser
+);
+
+
+// ============================================================
+// 15. SELLER APPLICATION ENTRY
+// ============================================================
+
+function openSellerApplication() {
 
     if (!currentUser) {
 
-      showToast(
-        "Please sign in first."
-      );
+        isSignupMode = false;
 
-      return;
+        updateAuthMode();
 
-    }
+        openModal("authDialog");
 
+        showToast("Sign in before applying to become a seller.");
 
-    const approved =
-      await isApprovedSeller();
-
-
-    if (!approved) {
-
-      showMessage(
-        formMessage,
-        "Your seller account must be approved before publishing.",
-        "error"
-      );
-
-      return;
+        return;
 
     }
 
+    const role = currentUserData?.role;
 
-    saveListingButton.disabled = true;
+    const status = currentUserData?.sellerStatus;
 
-    showMessage(
-      formMessage,
-      "Saving your listing..."
+    if (role === "seller") {
+
+        showToast("Your seller account is already approved.");
+
+        return;
+
+    }
+
+    if (status === "pending") {
+
+        showToast("Your seller application is awaiting review.");
+
+        return;
+
+    }
+
+    if (status === "rejected") {
+
+        showToast(
+            "Your previous application was rejected. Contact the admin for guidance."
+        );
+
+        return;
+
+    }
+
+    $("verificationFullName").value =
+        currentUser.displayName ||
+        currentUserData?.name ||
+        "";
+
+    $("verificationEmail").value =
+        currentUser.email || "";
+
+    openModal("sellerVerificationModal");
+
+}
+
+
+$("sellHeaderButton")?.addEventListener(
+    "click",
+    openSellerApplication
+);
+
+$("heroSellButton")?.addEventListener(
+    "click",
+    openSellerApplication
+);
+
+$("sellBannerButton")?.addEventListener(
+    "click",
+    openSellerApplication
+);
+
+$("dashboardBecomeSellerButton")?.addEventListener(
+    "click",
+    () => {
+        closeModal("dashboardDialog");
+        openSellerApplication();
+    }
+);
+
+
+// ============================================================
+// 16. IDENTITY VERIFICATION PLACEHOLDER
+// ============================================================
+
+$("startIdentityVerification")?.addEventListener("click", () => {
+
+    setMessage(
+        "identityVerificationStatus",
+        "Identity verification is not connected yet. You can still submit your seller application for admin review.",
+        "info"
     );
+
+});
+
+
+// ============================================================
+// 17. SELLER APPLICATION SUBMISSION
+// ============================================================
+
+$("sellerVerificationForm")?.addEventListener(
+    "submit",
+    async event => {
+
+        event.preventDefault();
+
+        if (!currentUser) {
+
+            setMessage(
+                "sellerVerificationMessage",
+                "Please sign in before applying.",
+                "error"
+            );
+
+            return;
+
+        }
+
+        const submitButton = $("submitVerificationButton");
+
+        submitButton.disabled = true;
+
+        submitButton.textContent = "Submitting...";
+
+
+        try {
+
+            const sellerRef = doc(
+                db,
+                SELLERS_COLLECTION,
+                currentUser.uid
+            );
+
+            const existingApplication = await getDoc(sellerRef);
+
+            if (existingApplication.exists()) {
+
+                const existingStatus =
+                    existingApplication.data().status;
+
+                if (existingStatus === "approved") {
+
+                    throw new Error(
+                        "Your seller application has already been approved."
+                    );
+
+                }
+
+                if (existingStatus === "pending") {
+
+                    throw new Error(
+                        "You already have an application awaiting review."
+                    );
+
+                }
+
+            }
+
+
+            const application = {
+
+                uid: currentUser.uid,
+
+                fullName:
+                    $("verificationFullName").value.trim(),
+
+                phone:
+                    $("verificationPhone").value.trim(),
+
+                email:
+                    $("verificationEmail").value.trim(),
+
+                businessName:
+                    $("verificationBusinessName").value.trim(),
+
+                state:
+                    $("verificationState").value,
+
+                city:
+                    $("verificationCity").value.trim(),
+
+                address:
+                    $("verificationAddress").value.trim(),
+
+                experience:
+                    $("verificationExperience").value,
+
+                products:
+                    $("verificationProducts").value.trim(),
+
+                description:
+                    $("verificationDescription").value.trim(),
+
+                status: "pending",
+
+                identityVerification: "not_connected",
+
+                photoUploadStatus: "not_uploaded",
+
+                submittedAt: serverTimestamp()
+
+            };
+
+
+            // The application is saved independently
+            // of identity verification and photo uploads.
+
+            await setDoc(sellerRef, application);
+
+
+            await setDoc(
+                doc(db, USERS_COLLECTION, currentUser.uid),
+                {
+                    sellerStatus: "pending",
+                    sellerApplicationSubmittedAt: serverTimestamp()
+                },
+                { merge: true }
+            );
+
+
+            currentUserData = {
+                ...currentUserData,
+                sellerStatus: "pending"
+            };
+
+
+            $("sellerVerificationForm").reset();
+
+            closeModal("sellerVerificationModal");
+
+            updateAccountButtons();
+
+            showToast(
+                "Seller application submitted. Await admin review."
+            );
+
+
+        } catch (error) {
+
+            console.error("Seller application error:", error);
+
+            setMessage(
+                "sellerVerificationMessage",
+                getFriendlyError(error),
+                "error"
+            );
+
+        } finally {
+
+            submitButton.disabled = false;
+
+            submitButton.textContent =
+                "Submit Seller Application";
+
+        }
+
+    }
+);
+
+
+// ============================================================
+// 18. ADMIN CHECK
+// ============================================================
+
+function isAdmin() {
+
+    return (
+        currentUser &&
+        currentUser.email?.toLowerCase() ===
+        ADMIN_EMAIL.toLowerCase()
+    );
+
+}
+
+
+// ============================================================
+// 19. ADMIN DASHBOARD ENTRY
+// ============================================================
+
+async function openAdminDashboard() {
+
+    if (!currentUser) {
+
+        showToast("Please sign in first.");
+
+        return;
+
+    }
+
+    if (!isAdmin()) {
+
+        showToast("You are not authorised to access the admin dashboard.");
+
+        return;
+
+    }
+
+    openModal("adminDialog");
+
+    await loadAdminDashboard();
+
+}
+
+
+// ============================================================
+// 20. LOAD ADMIN DASHBOARD
+// ============================================================
+
+async function loadAdminDashboard() {
+
+    if (!isAdmin()) return;
+
+    try {
+
+        const sellerSnapshot = await getDocs(
+            query(
+                collection(db, SELLERS_COLLECTION),
+                where("status", "==", "pending")
+            )
+        );
+
+
+        const usersSnapshot = await getDocs(
+            collection(db, USERS_COLLECTION)
+        );
+
+
+        const productsSnapshot = await getDocs(
+            collection(db, PRODUCTS_COLLECTION)
+        );
+
+
+        setText(
+            "pendingSellerCount",
+            sellerSnapshot.size
+        );
+
+        setText(
+            "totalUserCount",
+            usersSnapshot.size
+        );
+
+        setText(
+            "adminListingCount",
+            productsSnapshot.size
+        );
+
+
+        renderAdminApplications(
+            sellerSnapshot.docs.map(item => ({
+                id: item.id,
+                ...item.data()
+            }))
+        );
+
+
+    } catch (error) {
+
+        console.error("Admin dashboard error:", error);
+
+        showToast(getFriendlyError(error));
+
+    }
+
+}
+
+
+$("refreshAdminButton")?.addEventListener(
+    "click",
+    loadAdminDashboard
+);
+
+
+// ============================================================
+// 21. RENDER ADMIN APPLICATIONS
+// ============================================================
+
+function renderAdminApplications(applications) {
+
+    const container = $("adminApplications");
+
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    if (!applications.length) {
+
+        showElement("adminApplicationsEmpty");
+
+        return;
+
+    }
+
+    hideElement("adminApplicationsEmpty");
+
+
+    applications.forEach(application => {
+
+        const card = document.createElement("article");
+
+        card.className = "admin-application-card";
+
+
+        card.innerHTML = `
+
+            <div class="application-information">
+
+                <h3>${escapeHTML(application.fullName)}</h3>
+
+                <p>
+                    <strong>Email:</strong>
+                    ${escapeHTML(application.email)}
+                </p>
+
+                <p>
+                    <strong>Phone:</strong>
+                    ${escapeHTML(application.phone)}
+                </p>
+
+                <p>
+                    <strong>Business:</strong>
+                    ${escapeHTML(application.businessName || "Not provided")}
+                </p>
+
+                <p>
+                    <strong>Location:</strong>
+                    ${escapeHTML(application.city)},
+                    ${escapeHTML(application.state)}
+                </p>
+
+                <p>
+                    <strong>Experience:</strong>
+                    ${escapeHTML(application.experience)}
+                </p>
+
+                <p>
+                    <strong>Products:</strong>
+                    ${escapeHTML(application.products)}
+                </p>
+
+                <p>
+                    <strong>Description:</strong>
+                    ${escapeHTML(application.description)}
+                </p>
+
+                <span class="status-badge pending">
+                    Pending review
+                </span>
+
+            </div>
+
+
+            <div class="application-actions">
+
+                <button
+                    class="primary-button"
+                    data-admin-action="approve"
+                    data-user-id="${escapeHTML(application.uid)}"
+                >
+                    Approve
+                </button>
+
+
+                <button
+                    class="secondary-button"
+                    data-admin-action="reject"
+                    data-user-id="${escapeHTML(application.uid)}"
+                >
+                    Reject
+                </button>
+
+            </div>
+
+        `;
+
+
+        container.appendChild(card);
+
+    });
+
+}
+
+
+// ============================================================
+// 22. ADMIN APPROVAL AND REJECTION
+// ============================================================
+
+$("adminApplications")?.addEventListener(
+    "click",
+    async event => {
+
+        const button = event.target.closest(
+            "[data-admin-action]"
+        );
+
+        if (!button) return;
+
+        if (!isAdmin()) {
+
+            showToast("Admin access required.");
+
+            return;
+
+        }
+
+        const uid = button.dataset.userId;
+
+        const action = button.dataset.adminAction;
+
+        if (!uid) return;
+
+        button.disabled = true;
+
+
+        try {
+
+            const sellerRef = doc(
+                db,
+                SELLERS_COLLECTION,
+                uid
+            );
+
+            const userRef = doc(
+                db,
+                USERS_COLLECTION,
+                uid
+            );
+
+
+            const sellerSnapshot = await getDoc(sellerRef);
+
+            if (!sellerSnapshot.exists()) {
+
+                throw new Error("Seller application not found.");
+
+            }
+
+
+            const status =
+                action === "approve" ? "approved" : "rejected";
+
+
+            await updateDoc(sellerRef, {
+
+                status,
+
+                reviewedAt: serverTimestamp(),
+
+                reviewedBy: currentUser.uid
+
+            });
+
+
+            await setDoc(
+                userRef,
+                {
+                    role: status === "approved"
+                        ? "seller"
+                        : "buyer",
+
+                    sellerStatus: status,
+
+                    sellerReviewedAt: serverTimestamp()
+
+                },
+                { merge: true }
+            );
+
+
+            showToast(
+                status === "approved"
+                    ? "Seller approved successfully."
+                    : "Seller application rejected."
+            );
+
+
+            await loadAdminDashboard();
+
+
+        } catch (error) {
+
+            console.error("Admin action error:", error);
+
+            showToast(getFriendlyError(error));
+
+            button.disabled = false;
+
+        }
+
+    }
+);
+
+
+// ============================================================
+// 23. SELLER PERMISSION CHECK
+// ============================================================
+
+async function canManageListings() {
+
+    if (!currentUser) {
+
+        showToast("Please sign in first.");
+
+        return false;
+
+    }
 
 
     try {
 
-      const listingData = {
-
-        title:
-          listingTitleInput
-            .value
-            .trim(),
-
-        category:
-          listingCategory.value,
-
-        price:
-          Number(
-            listingPrice.value
-          ),
-
-        quantity:
-          listingQuantity
-            .value
-            .trim(),
-
-        unit:
-          listingUnit.value,
-
-        state:
-          listingState.value,
-
-        town:
-          listingTown
-            .value
-            .trim(),
-
-        seller:
-          listingSeller
-            .value
-            .trim(),
-
-        phone:
-          listingPhone
-            .value
-            .replace(/\s+/g, ""),
-
-        description:
-          listingDescription
-            .value
-            .trim(),
-
-        ownerId:
-          currentUser.uid,
-
-        ownerEmail:
-          currentUser.email || "",
-
-        active: true,
-
-        updatedAt:
-          serverTimestamp()
-
-      };
-
-
-      const editingId =
-        editingListingId.value;
-
-
-      if (editingId) {
-
-        await updateDoc(
-          doc(
-            db,
-            "products",
-            editingId
-          ),
-          listingData
+        const sellerSnapshot = await getDoc(
+            doc(db, SELLERS_COLLECTION, currentUser.uid)
         );
 
 
-        showToast(
-          "Listing updated successfully."
-        );
+        if (
+            !sellerSnapshot.exists() ||
+            sellerSnapshot.data().status !== "approved"
+        ) {
 
-      } else {
+            showToast(
+                "Only approved sellers can publish products."
+            );
 
-        listingData.createdAt =
-          serverTimestamp();
+            return false;
 
-
-        await addDoc(
-          collection(
-            db,
-            "products"
-          ),
-          listingData
-        );
+        }
 
 
-        showToast(
-          "Listing published successfully!"
-        );
+        return true;
 
-      }
-
-
-      await loadListings();
-
-
-      closeDialog(
-        listingDialog
-      );
 
     } catch (error) {
 
-      console.error(error);
+        showToast(getFriendlyError(error));
 
-      showMessage(
-        formMessage,
-        "Could not save your listing. Please try again.",
-        "error"
-      );
-
-    } finally {
-
-      saveListingButton.disabled =
-        false;
+        return false;
 
     }
 
-  }
+}
+
+
+// ============================================================
+// 24. OPEN PRODUCT LISTING
+// ============================================================
+
+async function openListingForm(product = null) {
+
+    const allowed = await canManageListings();
+
+    if (!allowed) return;
+
+
+    $("listingForm").reset();
+
+    $("editingListingId").value = "";
+
+
+    if (product) {
+
+        $("editingListingId").value = product.id;
+
+        $("listingTitleInput").value = product.title || "";
+
+        $("listingCategory").value = product.category || "";
+
+        $("listingPrice").value = product.price || "";
+
+        $("listingQuantity").value = product.quantity || "";
+
+        $("listingUnit").value = product.unit || "";
+
+        $("listingState").value = product.state || "";
+
+        $("listingTown").value = product.town || "";
+
+        $("listingSeller").value = product.seller || "";
+
+        $("listingPhone").value = product.phone || "";
+
+        $("listingDescription").value =
+            product.description || "";
+
+        setText("listingFormTitle", "Edit Product");
+
+        setText("saveListingButton", "Update Listing");
+
+    } else {
+
+        setText("listingFormTitle", "Create a Listing");
+
+        setText("saveListingButton", "Publish Listing");
+
+        $("listingSeller").value =
+            currentUserData?.name ||
+            currentUser.displayName ||
+            "";
+
+        $("listingPhone").value =
+            currentUserData?.phone || "";
+
+    }
+
+
+    setMessage("formMessage", "");
+
+    openModal("listingDialog");
+
+}
+
+
+// ============================================================
+// 25. SELLER DASHBOARD PRODUCT BUTTON
+// ============================================================
+
+$("dashboardContent")?.addEventListener(
+    "click",
+    async event => {
+
+        const button = event.target.closest(
+            "[data-seller-action]"
+        );
+
+        if (!button) return;
+
+        const action = button.dataset.sellerAction;
+
+        const productId = button.dataset.productId;
+
+        const product = products.find(
+            item => item.id === productId
+        );
+
+
+        if (action === "add") {
+
+            openListingForm();
+
+        }
+
+        if (action === "edit" && product) {
+
+            openListingForm(product);
+
+        }
+
+        if (action === "delete" && product) {
+
+            await deleteSellerProduct(product);
+
+        }
+
+    }
 );
 
 
-// ============================================
-// DELETE LISTING
-// ============================================
+// ============================================================
+// 26. SAVE OR UPDATE LISTING
+// ============================================================
 
-async function deleteListing(id) {
+$("listingForm")?.addEventListener(
+    "submit",
+    async event => {
 
-  if (!currentUser) return;
+        event.preventDefault();
 
+        const allowed = await canManageListings();
 
-  const listing =
-    allListings.find(
-      item =>
-        item.id === id
-    );
-
-
-  if (!listing) return;
+        if (!allowed) return;
 
 
-  const allowed =
-    listing.ownerId === currentUser.uid ||
-    isAdmin();
+        const button = $("saveListingButton");
+
+        button.disabled = true;
+
+        button.textContent = "Saving...";
 
 
-  if (!allowed) {
+        try {
 
-    showToast(
-      "You do not have permission to delete this listing."
-    );
+            const title =
+                $("listingTitleInput").value.trim();
 
-    return;
+            const category =
+                $("listingCategory").value;
 
-  }
+            const price =
+                Number($("listingPrice").value);
 
+            const quantity =
+                Number($("listingQuantity").value);
 
-  const confirmed =
-    window.confirm(
-      "Are you sure you want to delete this listing?"
-    );
+            const unit =
+                $("listingUnit").value;
 
+            const state =
+                $("listingState").value;
 
-  if (!confirmed) return;
+            const town =
+                $("listingTown").value.trim();
 
+            const seller =
+                $("listingSeller").value.trim();
 
-  try {
+            const phone =
+                $("listingPhone").value.trim();
 
-    await deleteDoc(
-      doc(
-        db,
-        "products",
-        id
-      )
-    );
-
-
-    await loadListings();
-
-    showToast(
-      "Listing deleted."
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Could not delete the listing."
-    );
-
-  }
-
-}
+            const description =
+                $("listingDescription").value.trim();
 
 
-// ============================================
-// LOAD LISTINGS
-// ============================================
+            if (
+                !title ||
+                !category ||
+                !price ||
+                !quantity ||
+                !unit ||
+                !state ||
+                !town ||
+                !seller ||
+                !phone ||
+                !description
+            ) {
 
-async function loadListings() {
+                throw new Error("Please complete all required fields.");
 
-  try {
-
-    resultsCount.textContent =
-      "Loading listings…";
-
-
-    const snapshot =
-      await getDocs(
-        collection(
-          db,
-          "products"
-        )
-      );
+            }
 
 
-    allListings =
-      snapshot.docs
-        .map(
-          document => ({
-            id: document.id,
-            ...document.data()
-          })
-        )
-        .filter(
-          listing =>
-            listing.active !== false
-        );
+            if (price <= 0 || quantity <= 0) {
+
+                throw new Error(
+                    "Price and quantity must be greater than zero."
+                );
+
+            }
 
 
-    renderListings();
+            const productData = {
 
-  } catch (error) {
+                title,
+                category,
+                price,
+                quantity,
+                unit,
+                state,
+                town,
+                seller,
+                phone,
+                description,
 
-    console.error(
-      "Error loading listings:",
-      error
-    );
+                sellerId: currentUser.uid,
 
+                sellerEmail: currentUser.email,
 
-    resultsCount.textContent =
-      "Could not load listings.";
+                status: "active",
 
-    listingGrid.innerHTML = "";
+                updatedAt: serverTimestamp()
 
-  }
-
-}
-
-
-// ============================================
-// FILTER & RENDER LISTINGS
-// ============================================
-
-function getFilteredListings() {
-
-  let listings =
-    [...allListings];
+            };
 
 
-  // SEARCH
-
-  if (activeSearch) {
-
-    const search =
-      activeSearch.toLowerCase();
+            const editingId =
+                $("editingListingId").value;
 
 
-    listings =
-      listings.filter(
-        listing => {
+            if (editingId) {
 
-          const text = [
+                const existingProduct = products.find(
+                    item => item.id === editingId
+                );
 
-            listing.title,
-            listing.category,
-            listing.description,
-            listing.seller,
-            listing.state,
-            listing.town
+                if (
+                    !existingProduct ||
+                    existingProduct.sellerId !== currentUser.uid
+                ) {
 
-          ]
-            .join(" ")
-            .toLowerCase();
+                    throw new Error(
+                        "You cannot edit this listing."
+                    );
+
+                }
 
 
-          return text.includes(
-            search
-          );
+                await updateDoc(
+                    doc(db, PRODUCTS_COLLECTION, editingId),
+                    productData
+                );
+
+
+                showToast("Product updated successfully.");
+
+            } else {
+
+                await addDoc(
+                    collection(db, PRODUCTS_COLLECTION),
+                    {
+                        ...productData,
+                        createdAt: serverTimestamp()
+                    }
+                );
+
+
+                showToast("Product published successfully.");
+
+            }
+
+
+            closeModal("listingDialog");
+
+            $("listingForm").reset();
+
+            await loadProducts();
+
+            await renderDashboardContent();
+
+
+        } catch (error) {
+
+            console.error("Listing save error:", error);
+
+            setMessage(
+                "formMessage",
+                getFriendlyError(error),
+                "error"
+            );
+
+        } finally {
+
+            button.disabled = false;
+
+            button.textContent =
+                $("editingListingId").value
+                    ? "Update Listing"
+                    : "Publish Listing";
 
         }
-      );
 
-  }
+    }
+);
 
 
-  // CATEGORY
+// ============================================================
+// 27. DELETE PRODUCT
+// ============================================================
 
-  if (activeCategory) {
+async function deleteSellerProduct(product) {
 
-    listings =
-      listings.filter(
-        listing =>
-          listing.category ===
-          activeCategory
-      );
+    if (!confirm(
+        `Are you sure you want to delete "${product.title}"?`
+    )) {
 
-  }
+        return;
 
+    }
 
-  // LOCATION
 
-  if (activeLocation) {
+    try {
 
-    listings =
-      listings.filter(
-        listing =>
-          listing.state ===
-          activeLocation
-      );
+        if (product.sellerId !== currentUser.uid) {
 
-  }
+            throw new Error(
+                "You cannot delete another seller's product."
+            );
 
+        }
 
-  // SORT
 
-  if (activeSort === "price-low") {
-
-    listings.sort(
-      (a, b) =>
-        Number(a.price || 0) -
-        Number(b.price || 0)
-    );
-
-  } else if (
-    activeSort === "price-high"
-  ) {
-
-    listings.sort(
-      (a, b) =>
-        Number(b.price || 0) -
-        Number(a.price || 0)
-    );
-
-  } else {
-
-    listings.sort(
-      (a, b) => {
-
-        const aTime =
-          a.createdAt?.seconds || 0;
-
-        const bTime =
-          b.createdAt?.seconds || 0;
-
-        return bTime - aTime;
-
-      }
-    );
-
-  }
-
-
-  return listings;
-
-}
-
-
-function renderListings() {
-
-  const listings =
-    getFilteredListings();
-
-
-  resultsCount.textContent =
-    `${listings.length} ${
-      listings.length === 1
-        ? "listing"
-        : "listings"
-    } found`;
-
-
-  listingGrid.innerHTML = "";
-
-
-  if (!listings.length) {
-
-    emptyState.classList.remove(
-      "hidden"
-    );
-
-    return;
-
-  }
-
-
-  emptyState.classList.add(
-    "hidden"
-  );
-
-
-  listingGrid.innerHTML =
-    listings
-      .map(
-        listingCardHTML
-      )
-      .join("");
-
-
-  attachListingCardEvents();
-
-}
-
-
-function getCategoryEmoji(category) {
-
-  const emojis = {
-
-    Eggs: "🥚",
-
-    Layers: "🐔",
-
-    Broilers: "🍗",
-
-    Chicks: "🐣",
-
-    Feed: "🌾",
-
-    Equipment: "🧰"
-
-  };
-
-  return emojis[category] || "🐔";
-
-}
-
-
-function listingCardHTML(listing) {
-
-  const inCart =
-    cart.some(
-      item =>
-        item.id === listing.id
-    );
-
-
-  return `
-
-    <article
-      class="listing-card"
-    >
-
-      <button
-        class="listing-card-main"
-        type="button"
-        data-view-listing="${listing.id}"
-      >
-
-        <div
-          class="listing-image"
-        >
-
-          <span>
-            ${getCategoryEmoji(listing.category)}
-          </span>
-
-        </div>
-
-
-        <div
-          class="listing-card-body"
-        >
-
-          <span
-            class="listing-category"
-          >
-            ${escapeHTML(listing.category || "Product")}
-          </span>
-
-
-          <h3>
-            ${escapeHTML(listing.title)}
-          </h3>
-
-
-          <p
-            class="listing-location"
-          >
-            📍
-            ${escapeHTML(listing.town || "")},
-            ${escapeHTML(listing.state || "")}
-          </p>
-
-
-          <div
-            class="listing-price"
-          >
-
-            <strong>
-              ${formatPrice(listing.price)}
-            </strong>
-
-            <small>
-              ${escapeHTML(listing.unit || "")}
-            </small>
-
-          </div>
-
-        </div>
-
-      </button>
-
-
-      <div
-        class="listing-card-actions"
-      >
-
-        <button
-          class="btn btn-outline"
-          type="button"
-          data-add-cart="${listing.id}"
-        >
-          ${
-            inCart
-              ? "In cart ✓"
-              : "Add to cart"
-          }
-        </button>
-
-
-        <button
-          class="btn btn-primary"
-          type="button"
-          data-contact-seller="${listing.id}"
-        >
-          Contact
-        </button>
-
-      </div>
-
-    </article>
-
-  `;
-
-}
-
-
-function attachListingCardEvents() {
-
-  document
-    .querySelectorAll(
-      "[data-view-listing]"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          "click",
-          () => {
-
-            const listing =
-              allListings.find(
-                item =>
-                  item.id ===
-                  button.dataset.viewListing
-              );
-
-            if (listing) {
-
-              openListingDetails(
-                listing
-              );
-
-            }
-
-          }
+        await deleteDoc(
+            doc(db, PRODUCTS_COLLECTION, product.id)
         );
 
-      }
-    );
+
+        showToast("Product deleted successfully.");
+
+        await loadProducts();
+
+        await renderDashboardContent();
 
 
-  document
-    .querySelectorAll(
-      "[data-add-cart]"
-    )
-    .forEach(
-      button => {
+    } catch (error) {
 
-        button.addEventListener(
-          "click",
-          () => {
+        showToast(getFriendlyError(error));
 
-            const id =
-              button.dataset.addCart;
+    }
 
-            addToCart(id);
+}
 
-          }
+
+// ============================================================
+// 28. LOAD PRODUCTS
+// ============================================================
+
+async function loadProducts() {
+
+    try {
+
+        const productQuery = query(
+            collection(db, PRODUCTS_COLLECTION),
+            where("status", "==", "active")
         );
 
-      }
-    );
+
+        const snapshot = await getDocs(productQuery);
 
 
-  document
-    .querySelectorAll(
-      "[data-contact-seller]"
-    )
-    .forEach(
-      button => {
+        products = snapshot.docs.map(item => ({
 
-        button.addEventListener(
-          "click",
-          () => {
+            id: item.id,
 
-            const listing =
-              allListings.find(
-                item =>
-                  item.id ===
-                  button.dataset.contactSeller
-              );
+            ...item.data()
 
-            if (listing) {
+        }));
 
-              contactSeller(
-                listing
-              );
 
-            }
+        renderProducts();
 
-          }
+
+    } catch (error) {
+
+        console.error("Product loading error:", error);
+
+        setText(
+            "resultsCount",
+            "Unable to load products. Please refresh."
         );
 
-      }
-    );
+        showToast(getFriendlyError(error));
+
+    }
 
 }
 
 
-// ============================================
-// LISTING DETAILS
-// ============================================
+// ============================================================
+// 29. PRODUCT FILTERING
+// ============================================================
 
-function openListingDetails(
-  listing
-) {
+function applyFilters() {
 
-  const canEdit =
-    currentUser &&
-    (
-      listing.ownerId === currentUser.uid ||
-      isAdmin()
-    );
+    const search =
+        $("searchInput")?.value.toLowerCase().trim() || "";
 
+    const category =
+        $("categoryFilter")?.value || "";
 
-  detailContent.innerHTML = `
+    const location =
+        $("locationFilter")?.value || "";
 
-    <div
-      class="modal-header"
-    >
-
-      <div>
-
-        <span
-          class="section-kicker"
-        >
-          ${escapeHTML(listing.category || "PRODUCT")}
-        </span>
+    const sort =
+        $("sortSelect")?.value || "newest";
 
 
-        <h2
-          id="detailHeading"
-        >
-          ${escapeHTML(listing.title)}
-        </h2>
+    filteredProducts = products.filter(product => {
 
-      </div>
+        const searchableText = [
 
+            product.title,
+            product.category,
+            product.seller,
+            product.description,
+            product.town,
+            product.state
 
-      <button
-        class="modal-close"
-        type="button"
-        id="closeDetailDialog"
-        aria-label="Close"
-      >
-        ×
-      </button>
-
-    </div>
+        ].join(" ").toLowerCase();
 
 
-    <div
-      class="detail-product"
-    >
+        const matchesSearch =
+            !search || searchableText.includes(search);
 
-      <div
-        class="detail-image"
-      >
+        const matchesCategory =
+            !category || product.category === category;
 
-        ${getCategoryEmoji(listing.category)}
-
-      </div>
+        const matchesLocation =
+            !location || product.state === location;
 
 
-      <div
-        class="detail-info"
-      >
-
-        <h3>
-          ${formatPrice(listing.price)}
-        </h3>
-
-
-        <p>
-          ${escapeHTML(listing.unit || "")}
-        </p>
-
-
-        <p>
-          <strong>
-            Quantity:
-          </strong>
-
-          ${escapeHTML(listing.quantity || "Not specified")}
-        </p>
-
-
-        <p>
-          📍
-          ${escapeHTML(listing.town || "")},
-          ${escapeHTML(listing.state || "")}
-        </p>
-
-
-        <p>
-          <strong>
-            Seller:
-          </strong>
-
-          ${escapeHTML(listing.seller || "")}
-        </p>
-
-
-        <p>
-          ${escapeHTML(
-            listing.description ||
-            "No additional description provided."
-          )}
-        </p>
-
-
-        <div
-          class="modal-actions"
-        >
-
-          <button
-            class="btn btn-outline"
-            type="button"
-            id="detailAddCart"
-          >
-            Add to cart
-          </button>
-
-
-          <button
-            class="btn btn-primary"
-            type="button"
-            id="detailContactSeller"
-          >
-            Contact seller ↗
-          </button>
-
-
-          ${
-            canEdit
-              ? `
-                <button
-                  class="btn btn-outline"
-                  type="button"
-                  id="detailEditListing"
-                >
-                  Edit
-                </button>
-              `
-              : ""
-          }
-
-        </div>
-
-      </div>
-
-    </div>
-
-  `;
-
-
-  openDialog(
-    detailDialog
-  );
-
-
-  $("closeDetailDialog")
-    ?.addEventListener(
-      "click",
-      () => closeDialog(detailDialog)
-    );
-
-
-  $("detailAddCart")
-    ?.addEventListener(
-      "click",
-      () => addToCart(listing.id)
-    );
-
-
-  $("detailContactSeller")
-    ?.addEventListener(
-      "click",
-      () => contactSeller(listing)
-    );
-
-
-  $("detailEditListing")
-    ?.addEventListener(
-      "click",
-      () => {
-
-        closeDialog(
-          detailDialog
+        return (
+            matchesSearch &&
+            matchesCategory &&
+            matchesLocation
         );
 
-        openListingDialog(
-          listing
+    });
+
+
+    if (sort === "price-low") {
+
+        filteredProducts.sort(
+            (a, b) => Number(a.price) - Number(b.price)
         );
 
-      }
-    );
+    } else if (sort === "price-high") {
+
+        filteredProducts.sort(
+            (a, b) => Number(b.price) - Number(a.price)
+        );
+
+    } else {
+
+        filteredProducts.sort(
+            (a, b) => getTime(b.createdAt) - getTime(a.createdAt)
+        );
+
+    }
 
 }
 
 
-// ============================================
-// WHATSAPP CONTACT
-// ============================================
+function getTime(timestamp) {
 
-function contactSeller(
-  listing
-) {
+    if (!timestamp) return 0;
 
-  let phone =
-    String(
-      listing.phone || ""
-    ).replace(/\D/g, "");
+    if (timestamp.seconds) {
+        return timestamp.seconds * 1000;
+    }
 
-
-  if (!phone) {
-
-    showToast(
-      "This seller has not provided a contact number."
-    );
-
-    return;
-
-  }
-
-
-  // CONVERT NIGERIAN LOCAL FORMAT
-
-  if (
-    phone.startsWith("0")
-  ) {
-
-    phone =
-      "234" +
-      phone.substring(1);
-
-  }
-
-
-  const message =
-    `Hello ${listing.seller || ""}, I found your listing "${listing.title}" on PoultryLink. Is it still available?`;
-
-
-  const url =
-    `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-
-
-  window.open(
-    url,
-    "_blank",
-    "noopener"
-  );
+    return new Date(timestamp).getTime() || 0;
 
 }
 
 
-// ============================================
-// CART
-// ============================================
+// ============================================================
+// 30. RENDER MARKETPLACE
+// ============================================================
 
-function saveCart() {
+function renderProducts() {
 
-  localStorage.setItem(
-    "poultrylinkCart",
-    JSON.stringify(cart)
-  );
+    applyFilters();
 
-}
+    const container = $("listingGrid");
+
+    if (!container) return;
 
 
-function addToCart(id) {
+    container.innerHTML = "";
 
-  const listing =
-    allListings.find(
-      item =>
-        item.id === id
+
+    setText(
+        "resultsCount",
+        `${filteredProducts.length} product(s) found`
     );
 
 
-  if (!listing) {
+    if (!filteredProducts.length) {
 
-    showToast(
-      "This listing is no longer available."
-    );
+        showElement("emptyState");
 
-    return;
+        return;
 
-  }
+    }
 
 
-  const exists =
-    cart.some(
-      item =>
-        item.id === id
-    );
+    hideElement("emptyState");
 
 
-  if (exists) {
+    filteredProducts.forEach(product => {
 
-    showToast(
-      "This item is already in your cart."
-    );
+        const card = document.createElement("article");
 
-    return;
-
-  }
+        card.className = "product-card";
 
 
-  cart.push({
-    ...listing,
-    cartQuantity: 1
-  });
+        card.innerHTML = `
 
-
-  saveCart();
-
-  renderCart();
-
-  renderListings();
-
-  showToast(
-    "Added to your cart."
-  );
-
-}
-
-
-function removeFromCart(id) {
-
-  cart =
-    cart.filter(
-      item =>
-        item.id !== id
-    );
-
-
-  saveCart();
-
-  renderCart();
-
-  renderListings();
-
-}
-
-
-function renderCart() {
-
-  if (!cartCount) return;
-
-
-  cartCount.textContent =
-    cart.length;
-
-
-  if (!cartItems) return;
-
-
-  if (!cart.length) {
-
-    cartItems.innerHTML = "";
-
-    cartEmpty.style.display =
-      "block";
-
-    cartSummary.style.display =
-      "none";
-
-    return;
-
-  }
-
-
-  cartEmpty.style.display =
-    "none";
-
-  cartSummary.style.display =
-    "flex";
-
-
-  cartItems.innerHTML =
-    cart
-      .map(
-        item => `
-
-          <article
-            class="cart-item"
-          >
-
-            <div
-              class="cart-item-icon"
-            >
-              ${getCategoryEmoji(item.category)}
+            <div class="product-image-placeholder">
+                🐔
             </div>
 
 
-            <div
-              class="cart-item-info"
+            <div class="product-card-content">
+
+                <span class="product-category">
+                    ${escapeHTML(product.category)}
+                </span>
+
+
+                <h3>
+                    ${escapeHTML(product.title)}
+                </h3>
+
+
+                <p class="product-price">
+                    ${formatMoney(product.price)}
+                </p>
+
+
+                <p>
+                    ${escapeHTML(product.quantity)}
+                    ${escapeHTML(product.unit)} available
+                </p>
+
+
+                <p class="product-location">
+                    📍 ${escapeHTML(product.town)},
+                    ${escapeHTML(product.state)}
+                </p>
+
+
+                <p class="product-seller">
+                    Seller: ${escapeHTML(product.seller)}
+                </p>
+
+
+                <div class="product-card-actions">
+
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        data-product-action="details"
+                        data-product-id="${escapeHTML(product.id)}"
+                    >
+                        View details
+                    </button>
+
+
+                    <button
+                        type="button"
+                        class="primary-button"
+                        data-product-action="cart"
+                        data-product-id="${escapeHTML(product.id)}"
+                    >
+                        Add to cart
+                    </button>
+
+                </div>
+
+            </div>
+
+        `;
+
+
+        container.appendChild(card);
+
+    });
+
+}
+
+
+// ============================================================
+// 31. SEARCH AND FILTER EVENTS
+// ============================================================
+
+$("searchForm")?.addEventListener(
+    "submit",
+    event => {
+
+        event.preventDefault();
+
+        renderProducts();
+
+    }
+);
+
+
+$("searchInput")?.addEventListener(
+    "input",
+    renderProducts
+);
+
+
+$("categoryFilter")?.addEventListener(
+    "change",
+    renderProducts
+);
+
+
+$("locationFilter")?.addEventListener(
+    "change",
+    renderProducts
+);
+
+
+$("sortSelect")?.addEventListener(
+    "change",
+    renderProducts
+);
+
+
+$("clearFiltersButton")?.addEventListener(
+    "click",
+    clearFilters
+);
+
+
+$("emptyClearButton")?.addEventListener(
+    "click",
+    clearFilters
+);
+
+
+function clearFilters() {
+
+    $("searchInput").value = "";
+
+    $("categoryFilter").value = "";
+
+    $("locationFilter").value = "";
+
+    $("sortSelect").value = "newest";
+
+    renderProducts();
+
+}
+
+
+// ============================================================
+// 32. CATEGORY CHIPS
+// ============================================================
+
+$("categoryChips")?.addEventListener(
+    "click",
+    event => {
+
+        const button = event.target.closest(
+            "[data-category]"
+        );
+
+        if (!button) return;
+
+        $("categoryFilter").value =
+            button.dataset.category;
+
+        renderProducts();
+
+    }
+);
+
+
+// ============================================================
+// 33. PRODUCT CARD ACTIONS
+// ============================================================
+
+$("listingGrid")?.addEventListener(
+    "click",
+    event => {
+
+        const button = event.target.closest(
+            "[data-product-action]"
+        );
+
+        if (!button) return;
+
+
+        const productId = button.dataset.productId;
+
+        const product = products.find(
+            item => item.id === productId
+        );
+
+        if (!product) return;
+
+
+        if (button.dataset.productAction === "details") {
+
+            openProductDetails(product);
+
+        }
+
+
+        if (button.dataset.productAction === "cart") {
+
+            addToCart(product);
+
+        }
+
+    }
+);
+
+
+// ============================================================
+// 34. PRODUCT DETAILS
+// ============================================================
+
+function openProductDetails(product) {
+
+    currentDetailProduct = product;
+
+    const container = $("detailContent");
+
+    if (!container) return;
+
+
+    const phone = normalizePhone(product.phone);
+
+
+    container.innerHTML = `
+
+        <div class="product-detail">
+
+            <div class="product-image-placeholder">
+                🐔
+            </div>
+
+
+            <span class="product-category">
+                ${escapeHTML(product.category)}
+            </span>
+
+
+            <h2>${escapeHTML(product.title)}</h2>
+
+
+            <h3 class="product-price">
+                ${formatMoney(product.price)}
+            </h3>
+
+
+            <p>
+                <strong>Quantity:</strong>
+                ${escapeHTML(product.quantity)}
+                ${escapeHTML(product.unit)}
+            </p>
+
+
+            <p>
+                <strong>Seller:</strong>
+                ${escapeHTML(product.seller)}
+            </p>
+
+
+            <p>
+                <strong>Location:</strong>
+                ${escapeHTML(product.town)},
+                ${escapeHTML(product.state)}
+            </p>
+
+
+            <p>
+                <strong>Description:</strong>
+                ${escapeHTML(product.description)}
+            </p>
+
+
+            <button
+                type="button"
+                class="primary-button full-width"
+                id="detailWhatsAppButton"
             >
-
-              <strong>
-                ${escapeHTML(item.title)}
-              </strong>
+                Contact seller on WhatsApp
+            </button>
 
 
-              <span>
-                ${formatPrice(item.price)}
-              </span>
+            <button
+                type="button"
+                class="secondary-button full-width"
+                id="detailAddCartButton"
+            >
+                Add to cart
+            </button>
+
+        </div>
+
+    `;
 
 
-              <small>
-                ${escapeHTML(item.seller || "")}
-              </small>
+    openModal("detailDialog");
+
+
+    $("detailWhatsAppButton")?.addEventListener(
+        "click",
+        () => contactSeller(product)
+    );
+
+
+    $("detailAddCartButton")?.addEventListener(
+        "click",
+        () => addToCart(product)
+    );
+
+}
+
+
+// ============================================================
+// 35. WHATSAPP CONTACT
+// ============================================================
+
+function contactSeller(product) {
+
+    const phone = normalizePhone(product.phone);
+
+    if (!phone) {
+
+        showToast("Seller has not provided a valid phone number.");
+
+        return;
+
+    }
+
+
+    const message = encodeURIComponent(
+
+        `Hello ${product.seller}, I found your product "${product.title}" on PoultryLink. I am interested in buying it. Is it still available?`
+
+    );
+
+
+    const whatsappURL =
+        `https://wa.me/${phone}?text=${message}`;
+
+
+    window.open(
+        whatsappURL,
+        "_blank",
+        "noopener,noreferrer"
+    );
+
+}
+
+
+// ============================================================
+// 36. ADD TO CART
+// ============================================================
+
+function addToCart(product) {
+
+    const existingItem = cart.find(
+        item => item.id === product.id
+    );
+
+
+    if (existingItem) {
+
+        existingItem.cartQuantity += 1;
+
+    } else {
+
+        cart.push({
+
+            id: product.id,
+
+            title: product.title,
+
+            price: Number(product.price),
+
+            seller: product.seller,
+
+            phone: product.phone,
+
+            unit: product.unit,
+
+            cartQuantity: 1
+
+        });
+
+    }
+
+
+    saveCart();
+
+    showToast("Product added to cart.");
+
+}
+
+
+// ============================================================
+// 37. CART DISPLAY
+// ============================================================
+
+function updateCartDisplay() {
+
+    const totalItems = cart.reduce(
+        (total, item) => total + item.cartQuantity,
+        0
+    );
+
+
+    setText("cartCount", totalItems);
+
+
+    const container = $("cartItems");
+
+    if (!container) return;
+
+
+    container.innerHTML = "";
+
+
+    if (!cart.length) {
+
+        showElement("cartEmpty");
+
+        hideElement("cartSummary");
+
+        return;
+
+    }
+
+
+    hideElement("cartEmpty");
+
+    showElement("cartSummary");
+
+
+    cart.forEach(item => {
+
+        const row = document.createElement("div");
+
+        row.className = "cart-item";
+
+
+        row.innerHTML = `
+
+            <div>
+
+                <h4>${escapeHTML(item.title)}</h4>
+
+                <p>
+                    ${formatMoney(item.price)}
+                    × ${item.cartQuantity}
+                </p>
+
+            </div>
+
+
+            <div class="cart-item-actions">
+
+                <button
+                    type="button"
+                    data-cart-action="decrease"
+                    data-product-id="${escapeHTML(item.id)}"
+                >
+                    −
+                </button>
+
+
+                <span>${item.cartQuantity}</span>
+
+
+                <button
+                    type="button"
+                    data-cart-action="increase"
+                    data-product-id="${escapeHTML(item.id)}"
+                >
+                    +
+                </button>
+
+
+                <button
+                    type="button"
+                    data-cart-action="remove"
+                    data-product-id="${escapeHTML(item.id)}"
+                >
+                    Remove
+                </button>
+
+            </div>
+
+        `;
+
+
+        container.appendChild(row);
+
+    });
+
+
+    const total = cart.reduce(
+        (sum, item) =>
+            sum + item.price * item.cartQuantity,
+        0
+    );
+
+
+    setText("cartTotal", formatMoney(total));
+
+}
+
+
+// ============================================================
+// 38. CART ACTIONS
+// ============================================================
+
+$("cartItems")?.addEventListener(
+    "click",
+    event => {
+
+        const button = event.target.closest(
+            "[data-cart-action]"
+        );
+
+        if (!button) return;
+
+
+        const id = button.dataset.productId;
+
+        const action = button.dataset.cartAction;
+
+        const item = cart.find(
+            product => product.id === id
+        );
+
+        if (!item) return;
+
+
+        if (action === "increase") {
+
+            item.cartQuantity++;
+
+        }
+
+
+        if (action === "decrease") {
+
+            item.cartQuantity--;
+
+            if (item.cartQuantity <= 0) {
+
+                cart = cart.filter(
+                    product => product.id !== id
+                );
+
+            }
+
+        }
+
+
+        if (action === "remove") {
+
+            cart = cart.filter(
+                product => product.id !== id
+            );
+
+        }
+
+
+        saveCart();
+
+    }
+);
+
+
+// ============================================================
+// 39. OPEN CART
+// ============================================================
+
+$("cartButton")?.addEventListener("click", () => {
+
+    updateCartDisplay();
+
+    openModal("cartDialog");
+
+});
+
+
+// ============================================================
+// 40. CART CONTACT SELLERS
+// ============================================================
+
+$("cartContactButton")?.addEventListener(
+    "click",
+    () => {
+
+        if (!cart.length) {
+
+            showToast("Your cart is empty.");
+
+            return;
+
+        }
+
+
+        const sellerNumbers = [
+            ...new Set(
+                cart.map(item => normalizePhone(item.phone))
+                    .filter(Boolean)
+            )
+        ];
+
+
+        if (!sellerNumbers.length) {
+
+            showToast("No valid seller phone numbers found.");
+
+            return;
+
+        }
+
+
+        // Each seller receives a message about the products
+        // from their own listing.
+
+        const firstItem = cart[0];
+
+        const message = encodeURIComponent(
+
+            `Hello ${firstItem.seller}, I am interested in the products I selected on PoultryLink. Please let me know how to proceed.`
+
+        );
+
+
+        window.open(
+            `https://wa.me/${sellerNumbers[0]}?text=${message}`,
+            "_blank",
+            "noopener,noreferrer"
+        );
+
+
+        showToast(
+            "Contact opened. Contact other sellers separately if your cart contains multiple sellers."
+        );
+
+    }
+);
+
+
+// ============================================================
+// 41. USER DASHBOARD
+// ============================================================
+
+async function openDashboard() {
+
+    if (!currentUser) {
+
+        openModal("authDialog");
+
+        return;
+
+    }
+
+
+    openModal("dashboardDialog");
+
+
+    try {
+
+        await loadUserData(currentUser);
+
+        const role = currentUserData.role || "buyer";
+
+        const sellerStatus =
+            currentUserData.sellerStatus || "";
+
+
+        setText(
+            "dashboardRole",
+            role === "seller"
+                ? "Verified Seller"
+                : sellerStatus === "pending"
+                    ? "Seller Application Pending"
+                    : "Buyer"
+        );
+
+
+        setText(
+            "dashboardTitle",
+            isAdmin() ? "Admin Account" : "My Dashboard"
+        );
+
+
+        setText(
+            "dashboardKicker",
+            isAdmin() ? "ADMIN ACCOUNT" : "MY ACCOUNT"
+        );
+
+
+        updateAccountButtons();
+
+        await renderDashboardContent();
+
+
+        if (isAdmin()) {
+
+            const adminButton = document.createElement("button");
+
+            adminButton.type = "button";
+
+            adminButton.className = "primary-button full-width";
+
+            adminButton.textContent = "Open Admin Dashboard";
+
+            adminButton.addEventListener(
+                "click",
+                () => {
+                    closeModal("dashboardDialog");
+                    openAdminDashboard();
+                }
+            );
+
+
+            $("dashboardContent")?.appendChild(adminButton);
+
+        }
+
+
+    } catch (error) {
+
+        console.error("Dashboard error:", error);
+
+        showToast(getFriendlyError(error));
+
+    }
+
+}
+
+
+// ============================================================
+// 42. DASHBOARD CONTENT
+// ============================================================
+
+async function renderDashboardContent() {
+
+    const container = $("dashboardContent");
+
+    if (!container || !currentUser) return;
+
+
+    const role = currentUserData?.role || "buyer";
+
+    const status = currentUserData?.sellerStatus || "";
+
+
+    if (role !== "seller") {
+
+        container.innerHTML = `
+
+            <div class="dashboard-information">
+
+                <h3>Account Overview</h3>
+
+                <p>
+                    You are currently registered as a buyer.
+                </p>
+
+                <p>
+                    Apply to become a verified seller to publish
+                    your poultry products.
+                </p>
+
+                ${
+                    status === "pending"
+                        ? `
+                            <p class="status-badge pending">
+                                Your seller application is awaiting review.
+                            </p>
+                        `
+                        : ""
+                }
+
+                ${
+                    status === "rejected"
+                        ? `
+                            <p class="status-badge rejected">
+                                Your previous application was rejected.
+                            </p>
+                        `
+                        : ""
+                }
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    const sellerProducts = products.filter(
+        product => product.sellerId === currentUser.uid
+    );
+
+
+    container.innerHTML = `
+
+        <div class="seller-dashboard">
+
+            <h3>Seller Dashboard</h3>
+
+            <p>
+                Manage your PoultryLink product listings.
+            </p>
+
+
+            <div class="seller-dashboard-stats">
+
+                <div>
+                    <strong>${sellerProducts.length}</strong>
+                    <span>Your listings</span>
+                </div>
 
             </div>
 
 
             <button
-              type="button"
-              class="text-button"
-              data-remove-cart="${item.id}"
+                type="button"
+                class="primary-button full-width"
+                data-seller-action="add"
             >
-              Remove
+                + Add New Product
             </button>
 
-          </article>
 
-        `
-      )
-      .join("");
+            <h3>Your Products</h3>
 
 
-  const total =
-    cart.reduce(
-      (sum, item) =>
-        sum +
-        Number(item.price || 0),
-      0
-    );
+            <div class="seller-products">
 
+                ${
+                    sellerProducts.length
+                        ? sellerProducts.map(product => `
 
-  cartTotal.textContent =
-    formatPrice(total);
+                            <div class="seller-product-item">
 
+                                <h4>${escapeHTML(product.title)}</h4>
 
-  document
-    .querySelectorAll(
-      "[data-remove-cart]"
-    )
-    .forEach(
-      button => {
+                                <p>${formatMoney(product.price)}</p>
 
-        button.addEventListener(
-          "click",
-          () => {
+                                <div class="seller-product-actions">
 
-            removeFromCart(
-              button.dataset.removeCart
-            );
+                                    <button
+                                        type="button"
+                                        class="secondary-button"
+                                        data-seller-action="edit"
+                                        data-product-id="${escapeHTML(product.id)}"
+                                    >
+                                        Edit
+                                    </button>
 
-          }
-        );
 
-      }
-    );
+                                    <button
+                                        type="button"
+                                        class="secondary-button"
+                                        data-seller-action="delete"
+                                        data-product-id="${escapeHTML(product.id)}"
+                                    >
+                                        Delete
+                                    </button>
 
-}
+                                </div>
 
+                            </div>
 
-// OPEN CART
-
-cartButton?.addEventListener(
-  "click",
-  () => {
-
-    renderCart();
-
-    openDialog(
-      cartDialog
-    );
-
-  }
-);
-
-
-// CONTACT SELLERS FROM CART
-
-cartContactButton?.addEventListener(
-  "click",
-  () => {
-
-    if (!cart.length) {
-
-      showToast(
-        "Your cart is empty."
-      );
-
-      return;
-
-    }
-
-
-    closeDialog(
-      cartDialog
-    );
-
-
-    const sellers =
-      [...new Set(
-        cart
-          .map(
-            item => item.seller
-          )
-          .filter(Boolean)
-      )];
-
-
-    showToast(
-      `Your cart contains products from ${sellers.length} seller(s). Open each listing to contact the seller.`
-    );
-
-  }
-);
-
-
-// ============================================
-// SEARCH
-// ============================================
-
-searchForm?.addEventListener(
-  "submit",
-  (event) => {
-
-    event.preventDefault();
-
-    activeSearch =
-      searchInput.value.trim();
-
-    activeCategory =
-      categoryFilter.value;
-
-    activeLocation =
-      locationFilter.value;
-
-
-    updateCategoryChips();
-
-    renderListings();
-
-
-    document
-      .getElementById("marketplace")
-      ?.scrollIntoView({
-        behavior: "smooth"
-      });
-
-  }
-);
-
-
-// CATEGORY CHIPS
-
-categoryChips
-  ?.querySelectorAll(
-    "[data-category]"
-  )
-  .forEach(
-    chip => {
-
-      chip.addEventListener(
-        "click",
-        () => {
-
-          activeCategory =
-            chip.dataset.category || "";
-
-          categoryFilter.value =
-            activeCategory;
-
-          updateCategoryChips();
-
-          renderListings();
-
-        }
-      );
-
-    }
-  );
-
-
-function updateCategoryChips() {
-
-  categoryChips
-    ?.querySelectorAll(
-      "[data-category]"
-    )
-    .forEach(
-      chip => {
-
-        chip.classList.toggle(
-          "active",
-          chip.dataset.category ===
-          activeCategory
-        );
-
-      }
-    );
-
-}
-
-
-// LOCATION FILTER
-
-locationFilter?.addEventListener(
-  "change",
-  () => {
-
-    activeLocation =
-      locationFilter.value;
-
-    renderListings();
-
-  }
-);
-
-
-// CATEGORY SELECT
-
-categoryFilter?.addEventListener(
-  "change",
-  () => {
-
-    activeCategory =
-      categoryFilter.value;
-
-    updateCategoryChips();
-
-    renderListings();
-
-  }
-);
-
-
-// SORT
-
-sortSelect?.addEventListener(
-  "change",
-  () => {
-
-    activeSort =
-      sortSelect.value;
-
-    renderListings();
-
-  }
-);
-
-
-// CLEAR FILTERS
-
-function clearFilters() {
-
-  activeSearch = "";
-  activeCategory = "";
-  activeLocation = "";
-  activeSort = "newest";
-
-
-  if (searchInput) {
-    searchInput.value = "";
-  }
-
-  if (categoryFilter) {
-    categoryFilter.value = "";
-  }
-
-  if (locationFilter) {
-    locationFilter.value = "";
-  }
-
-  if (sortSelect) {
-    sortSelect.value = "newest";
-  }
-
-
-  updateCategoryChips();
-
-  renderListings();
-
-}
-
-
-clearFiltersButton?.addEventListener(
-  "click",
-  clearFilters
-);
-
-emptyClearButton?.addEventListener(
-  "click",
-  clearFilters
-);
-
-
-// ============================================
-// ADMIN DASHBOARD
-// ============================================
-
-async function loadAdminDashboard() {
-
-  if (!isAdmin()) {
-
-    showToast(
-      "Admin access only."
-    );
-
-    return;
-
-  }
-
-
-  try {
-
-    adminApplications.innerHTML =
-      "<p>Loading applications...</p>";
-
-
-    const sellersSnapshot =
-      await getDocs(
-        collection(
-          db,
-          "sellers"
-        )
-      );
-
-
-    const usersSnapshot =
-      await getDocs(
-        collection(
-          db,
-          "users"
-        )
-      );
-
-
-    const productsSnapshot =
-      await getDocs(
-        collection(
-          db,
-          "products"
-        )
-      );
-
-
-    const sellers =
-      sellersSnapshot.docs.map(
-        item => ({
-          id: item.id,
-          ...item.data()
-        })
-      );
-
-
-    const pending =
-      sellers.filter(
-        seller =>
-          seller.status ===
-          "pending"
-      );
-
-
-    const activeProducts =
-      productsSnapshot.docs.filter(
-        item =>
-          item.data().active !== false
-      );
-
-
-    pendingSellerCount.textContent =
-      pending.length;
-
-    totalUserCount.textContent =
-      usersSnapshot.size;
-
-    adminListingCount.textContent =
-      activeProducts.length;
-
-
-    renderAdminApplications(
-      pending
-    );
-
-  } catch (error) {
-
-    console.error(error);
-
-    adminApplications.innerHTML =
-      `
-        <p>
-          Could not load admin information.
-        </p>
-      `;
-
-  }
-
-}
-
-
-function renderAdminApplications(
-  applications
-) {
-
-  adminApplications.innerHTML = "";
-
-
-  if (!applications.length) {
-
-    adminApplicationsEmpty.style.display =
-      "block";
-
-    return;
-
-  }
-
-
-  adminApplicationsEmpty.style.display =
-    "none";
-
-
-  adminApplications.innerHTML =
-    applications
-      .map(
-        application => `
-
-          <article
-            class="admin-application"
-          >
-
-            <div
-              class="admin-application-info"
-            >
-
-              <h4>
-                ${escapeHTML(
-                  application.businessName ||
-                  application.fullName ||
-                  "Seller"
-                )}
-              </h4>
-
-
-              <p>
-                <strong>
-                  ${escapeHTML(
-                    application.fullName || ""
-                  )}
-                </strong>
-              </p>
-
-
-              <p>
-                📍
-                ${escapeHTML(
-                  application.city || ""
-                )},
-                ${escapeHTML(
-                  application.state || ""
-                )}
-              </p>
-
-
-              <p>
-                📞
-                ${escapeHTML(
-                  application.phone || ""
-                )}
-              </p>
-
-
-              <p>
-                ${escapeHTML(
-                  application.products || ""
-                )}
-              </p>
-
-
-              <p>
-                ${escapeHTML(
-                  application.description || ""
-                )}
-              </p>
+                        `).join("")
+                        : "<p>You have not published any products yet.</p>"
+                }
 
             </div>
 
+        </div>
 
-            <div
-              class="admin-application-actions"
-            >
-
-              <button
-                class="btn btn-primary"
-                type="button"
-                data-approve-seller="${application.id}"
-              >
-                Approve
-              </button>
-
-
-              <button
-                class="btn btn-outline"
-                type="button"
-                data-reject-seller="${application.id}"
-              >
-                Reject
-              </button>
-
-            </div>
-
-          </article>
-
-        `
-      )
-      .join("");
-
-
-  adminApplications
-    .querySelectorAll(
-      "[data-approve-seller]"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          "click",
-          async () => {
-
-            await approveSeller(
-              button.dataset.approveSeller
-            );
-
-          }
-        );
-
-      }
-    );
-
-
-  adminApplications
-    .querySelectorAll(
-      "[data-reject-seller]"
-    )
-    .forEach(
-      button => {
-
-        button.addEventListener(
-          "click",
-          async () => {
-
-            await rejectSeller(
-              button.dataset.rejectSeller
-            );
-
-          }
-        );
-
-      }
-    );
+    `;
 
 }
 
 
-// APPROVE SELLER
+// ============================================================
+// 43. DASHBOARD OPEN BUTTON
+// ============================================================
 
-async function approveSeller(uid) {
-
-  if (!isAdmin()) return;
-
-
-  try {
-
-    await updateDoc(
-      doc(
-        db,
-        "sellers",
-        uid
-      ),
-      {
-        status:
-          "approved",
-
-        reviewedAt:
-          serverTimestamp(),
-
-        reviewedBy:
-          currentUser.uid
-      }
-    );
-
-
-    await setDoc(
-      doc(
-        db,
-        "users",
-        uid
-      ),
-      {
-        role:
-          "seller"
-      },
-      {
-        merge: true
-      }
-    );
-
-
-    showToast(
-      "Seller approved successfully."
-    );
-
-
-    await loadAdminDashboard();
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Could not approve seller."
-    );
-
-  }
-
-}
-
-
-// REJECT SELLER
-
-async function rejectSeller(uid) {
-
-  if (!isAdmin()) return;
-
-
-  const confirmed =
-    window.confirm(
-      "Are you sure you want to reject this seller application?"
-    );
-
-
-  if (!confirmed) return;
-
-
-  try {
-
-    await updateDoc(
-      doc(
-        db,
-        "sellers",
-        uid
-      ),
-      {
-        status:
-          "rejected",
-
-        reviewedAt:
-          serverTimestamp(),
-
-        reviewedBy:
-          currentUser.uid
-      }
-    );
-
-
-    await setDoc(
-      doc(
-        db,
-        "users",
-        uid
-      ),
-      {
-        role:
-          "buyer"
-      },
-      {
-        merge: true
-      }
-    );
-
-
-    showToast(
-      "Seller application rejected."
-    );
-
-
-    await loadAdminDashboard();
-
-  } catch (error) {
-
-    console.error(error);
-
-    showToast(
-      "Could not reject seller."
-    );
-
-  }
-
-}
-
-
-refreshAdminButton?.addEventListener(
-  "click",
-  loadAdminDashboard
+$("dashboardName")?.addEventListener(
+    "click",
+    openDashboard
 );
 
 
-// ============================================
-// MOBILE MENU
-// ============================================
+// ============================================================
+// 44. INITIAL PAGE SETUP
+// ============================================================
 
-menuButton?.addEventListener(
-  "click",
-  () => {
+function initializePage() {
 
-    const expanded =
-      menuButton.getAttribute(
-        "aria-expanded"
-      ) === "true";
-
-
-    menuButton.setAttribute(
-      "aria-expanded",
-      String(!expanded)
+    setText(
+        "year",
+        new Date().getFullYear()
     );
 
 
-    desktopNav?.classList.toggle(
-      "mobile-open"
-    );
+    updateCartDisplay();
 
-  }
-);
+    updateAuthMode();
 
-
-// ============================================
-// FOOTER YEAR
-// ============================================
-
-if (year) {
-
-  year.textContent =
-    new Date().getFullYear();
+    loadProducts();
 
 }
 
 
-// ============================================
-// START APPLICATION
-// ============================================
+initializePage();
 
-renderCart();
 
-loadListings();
+// ============================================================
+// END OF POULTRYLINK SCRIPT
+// ============================================================
